@@ -1,0 +1,13 @@
+# compilados
+*.class
+*.jar
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# build
+out/
+target/
+build/
