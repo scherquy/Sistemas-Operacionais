@@ -95,6 +95,93 @@ public class GerenciadorHeap {
         return true;
     }
 
+
+   // procura o primeiro espaço livre contíugo com tamanho suficiente para alocar o bloco(First Fit)
+   //retorna o índice de início do espaço encontrado ou -1 se não houver espaço suficiente
+ 
+    public int buscarEspacoFirstFit(int tamanhoSlots) {
+        int[] memoria = heap.getMemoria();
+        int inicioLivre = -1;
+        int contadorLivre = 0;
+ 
+        for (int i = 0; i < memoria.length; i++) {
+            if (memoria[i] == 0) {
+                // marca o início do bloco livre se ainda não marcou
+                if (inicioLivre == -1) {
+                    inicioLivre = i;
+                }
+                contadorLivre++;
+ 
+                // encontrou espaço suficiente: retorna imediatamente (First Fit)
+                if (contadorLivre >= tamanhoSlots) {
+                    return inicioLivre;
+                }
+            } else {
+                // slot ocupado: reinicia a busca
+                inicioLivre = -1;
+                contadorLivre = 0;
+            }
+        }
+ 
+        // nenhum espaço contíguo suficiente foi encontrado
+        return -1;
+    }
+
+    // tenta alocar um bloco na heap usando First Fit
+    // retorna o ID do bloco alocado, ou -1 se não houver espaço
+    public int alocarFirstFit(int tamanhoBytes) {
+        int tamanhoSlots = heap.converterBytesParaSlots(tamanhoBytes);
+        int inicio = buscarEspacoFirstFit(tamanhoSlots);
+ 
+        if (inicio == -1) {
+            // sem espaço: aciona a liberação aleatória de pelo menos 30% da heap
+            liberarAleatorio();
+ 
+            // tenta novamente após a liberação
+            inicio = buscarEspacoFirstFit(tamanhoSlots);
+ 
+            if (inicio == -1) {
+                // mesmo após liberação não há espaço contíguo suficiente
+                // isso pode ocorrer por fragmentação externa: compactação seria necessária aqui
+                // por ora retorna -1 para o gerador tratar
+                return -1;
+            }
+        }
+ 
+        // espaço encontrado: gera ID, escreve na heap e registra na tabela
+        int id = gerarNovoId();
+        heap.escrever(inicio, tamanhoSlots, id);
+        registrarBlocoAlocado(id, inicio, tamanhoBytes, tamanhoSlots);
+ 
+        return id;
+    }
+
+    // libera aleatoriamente blocos da heap até que pelo menos 30% do total de slots seja liberado
+    
+    public void liberarAleatorio() {
+        totalChamadasLiberacao++;
+ 
+        int metaLiberacao = (int) Math.ceil(heap.getTotalSlots() * 0.30);
+        int slotsLiberados = 0;
+ 
+        // copia a lista e embaralha para garantir ordem aleatória
+        ArrayList<BlocoAlocado> candidatos = new ArrayList<>(tabelaAlocacoes);
+        Collections.shuffle(candidatos, new Random());
+ 
+        for (int i = 0; i < candidatos.size() && slotsLiberados < metaLiberacao; i++) {
+            BlocoAlocado bloco = candidatos.get(i);
+ 
+            // zera os slots na heap e remove da tabela
+            heap.liberar(bloco.getInicio(), bloco.getTamanhoSlots());
+            removerRegistroPorId(bloco.getId());
+ 
+            slotsLiberados += bloco.getTamanhoSlots();
+            totalBlocosLiberados++;
+        }
+    }
+
+      
+
     public int contarSlotsOcupadosPelaTabela() {
         int total = 0;
 
