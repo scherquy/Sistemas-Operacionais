@@ -3,7 +3,7 @@ package simulador.heap;
 // cada posição do vetor equivale a 4 bytes (tamanho do um int em Java)
 // Exemplo: heap de 1 KB = 1024 bytes / 4 = 256 slots
 public class Heap {
-    private final int[] memoria;
+    private final int[] memoria;  // representa a memória da heap, onde cada posição é um slot de 4 bytes
     private final int totalSlots;
     private final int totalBytes;
 
@@ -11,7 +11,7 @@ public class Heap {
     public Heap(int tamanhoKB) {
         // converte KB para bytes: 1 KB = 1024 bytes
         this.totalBytes = tamanhoKB * 1024;
-
+    
         // converte bytes para slots: cada int = 4 bytes
         this.totalSlots = totalBytes / 4;
         this.memoria = new int[totalSlots];
@@ -27,6 +27,23 @@ public class Heap {
     public int converterSlotsParaBytes(int slots) {
         return slots * 4;
     }
+
+
+    // Escreve o ID da requisição em todos os slots ocupados pelo bloco.
+    public void escrever(int inicio, int tamanhoSlots, int id) {
+        for (int i = inicio; i < inicio + tamanhoSlots; i++) {
+            memoria[i] = id;
+        }
+    }
+
+    //zera os slots ocupados pelo bloco, marcando-os como livres (0)
+    public void liberar(int inicio, int tamanhoSlots) {
+        for (int i = inicio; i < inicio + tamanhoSlots; i++) {
+            memoria[i] = 0;
+        }
+    }
+
+
 
     public int[] getMemoria() {
         return memoria;
