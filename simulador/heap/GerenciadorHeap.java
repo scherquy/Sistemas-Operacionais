@@ -1,16 +1,22 @@
 package simulador.heap;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Random;
 
 public class GerenciadorHeap {
     private Heap heap;
     private ArrayList<BlocoAlocado> tabelaAlocacoes;
     private int proximoId;
+    private int totalChamadasLiberacao;
+    private int totalBlocosLiberados;
 
     public GerenciadorHeap(Heap heap) {
         this.heap = heap;
         this.tabelaAlocacoes = new ArrayList<>();
         this.proximoId = 1;
+        this.totalChamadasLiberacao = 0;
+        this.totalBlocosLiberados = 0;
     }
 
     public int gerarNovoId() {
@@ -21,19 +27,19 @@ public class GerenciadorHeap {
 
     public void registrarBlocoAlocado(int id, int inicio, int tamanhoSolicitadoBytes, int tamanhoSlots) {
         if (id <= 0) {
-            throw new IllegalArgumentException("O ID deve ser maior que zero, pois 0 representa espaço livre.");
+            throw new IllegalArgumentException("O ID deve ser maior que zero, pois 0 representa espaço livre");
         }
 
         if (tamanhoSlots <= 0) {
-            throw new IllegalArgumentException("O tamanho em slots deve ser maior que zero.");
+            throw new IllegalArgumentException("O tamanho em slots deve ser maior que zero");
         }
 
         if (!intervaloEstaDentroDaHeap(inicio, tamanhoSlots)) {
-            throw new IllegalArgumentException("O bloco informado está fora dos limites da heap.");
+            throw new IllegalArgumentException("O bloco informado está fora dos limites da heap");
         }
 
         if (buscarBlocoPorId(id) != null) {
-            throw new IllegalArgumentException("Já existe um bloco com o ID " + id + ".");
+            throw new IllegalArgumentException("Já existe um bloco com o ID " + id);
         }
 
         BlocoAlocado bloco = new BlocoAlocado(id, inicio, tamanhoSolicitadoBytes, tamanhoSlots);
@@ -98,7 +104,6 @@ public class GerenciadorHeap {
 
    // procura o primeiro espaço livre contíugo com tamanho suficiente para alocar o bloco(First Fit)
    //retorna o índice de início do espaço encontrado ou -1 se não houver espaço suficiente
- 
     public int buscarEspacoFirstFit(int tamanhoSlots) {
         int[] memoria = heap.getMemoria();
         int inicioLivre = -1;
@@ -141,10 +146,17 @@ public class GerenciadorHeap {
             inicio = buscarEspacoFirstFit(tamanhoSlots);
  
             if (inicio == -1) {
-                // mesmo após liberação não há espaço contíguo suficiente
-                // isso pode ocorrer por fragmentação externa: compactação seria necessária aqui
-                // por ora retorna -1 para o gerador tratar
-                return -1;
+                // mesmo após liberação segue sem espaço contíguo (frag externa)
+                compactar();
+
+                // última tentativa após compactação
+                inicio = buscarEspacoFirstFit(tamanhoSlots);
+
+                if (inicio == -1) {
+                    // mesmo depois de liberar e compactar não tem espaço, a heap não tem capacidade pra ess requisição
+                    System.out.printf("\nREQUISIÇÃO REJEITADA: sem espaço após liberação e compactação\n");
+                    return -1;
+                }
             }
         }
  
@@ -157,28 +169,45 @@ public class GerenciadorHeap {
     }
 
     // libera aleatoriamente blocos da heap até que pelo menos 30% do total de slots seja liberado
-    
     public void liberarAleatorio() {
-        totalChamadasLiberacao++;
- 
-        int metaLiberacao = (int) Math.ceil(heap.getTotalSlots() * 0.30);
-        int slotsLiberados = 0;
- 
-        // copia a lista e embaralha para garantir ordem aleatória
-        ArrayList<BlocoAlocado> candidatos = new ArrayList<>(tabelaAlocacoes);
-        Collections.shuffle(candidatos, new Random());
- 
-        for (int i = 0; i < candidatos.size() && slotsLiberados < metaLiberacao; i++) {
-            BlocoAlocado bloco = candidatos.get(i);
- 
-            // zera os slots na heap e remove da tabela
-            heap.liberar(bloco.getInicio(), bloco.getTamanhoSlots());
-            removerRegistroPorId(bloco.getId());
- 
-            slotsLiberados += bloco.getTamanhoSlots();
-            totalBlocosLiberados++;
-        }
+    totalChamadasLiberacao++;
+
+    if (tabelaAlocacoes.isEmpty()) {
+        System.out.println("Tabela vazia, nada para liberar");
+        return;
     }
+
+    int metaSlots = (int) Math.ceil(heap.getTotalSlots() * 0.30);
+    int metaBytes = metaSlots * 4;
+    int slotsLiberados = 0;
+
+    System.out.printf("\nINICIANDO LIBERAÇÃO: %d slots (%d  bytes)\n", metaSlots, metaBytes);
+
+    // copia a lista de blocos e embaralha para garantir ordem aleatória
+    // usamos uma cópia para nao modificar a lista original durante o loop
+    ArrayList<BlocoAlocado> candidatos = new ArrayList<>(tabelaAlocacoes);
+    Collections.shuffle(candidatos, new Random());
+
+    for (int i = 0; i < candidatos.size() && slotsLiberados < metaSlots; i++) {
+        BlocoAlocado bloco = candidatos.get(i);
+
+        // zera os slots na heap e remove da tabela
+        heap.liberar(bloco.getInicio(), bloco.getTamanhoSlots());
+        removerRegistroPorId(bloco.getId());
+
+        slotsLiberados += bloco.getTamanhoSlots();
+        totalBlocosLiberados++;
+
+        System.out.printf("\nRemovido ID = %d | slots = %d | liberado até agora = %d/%d\n", bloco.getId(), bloco.getTamanhoSlots(), slotsLiberados, metaSlots);
+    }
+
+    // avisa se não conseguiu atingir a meta (poucos blocos na tabela)
+    if (slotsLiberados < metaSlots) {
+        System.out.printf("\nMeta não atingida\nLiberado = %d | Meta = %d\nBlocos Insuficientes\n", slotsLiberados, metaSlots);
+    } else {
+        System.out.printf("\nLiberação Concluída.\nTotal liberado = %d slots (%d bytes)\n", slotsLiberados, slotsLiberados*4);
+    }
+}
 
       
 
@@ -277,7 +306,7 @@ public class GerenciadorHeap {
         }
 
         if (!encontrouLivre) {
-            System.out.printf("\nNão há blocos livres\n");
+            System.out.printf("\nNão tem blocos livres\n");
         }
     }
 
@@ -292,12 +321,73 @@ public class GerenciadorHeap {
     }
 
     public void imprimirResumoControle() {
-        System.out.println("\n=== Resumo do Controle da Heap ===");
-        System.out.println("Total de slots da heap: " + heap.getTotalSlots());
-        System.out.println("Blocos alocados: " + getQuantidadeBlocosAlocados());
-        System.out.println("Slots ocupados pela tabela: " + contarSlotsOcupadosPelaTabela());
-        System.out.println("Slots livres pela tabela: " + contarSlotsLivresPelaTabela());
-        System.out.println("Slots ocupados olhando a heap: " + contarSlotsOcupadosPelaHeap());
-        System.out.println("Slots livres olhando a heap: " + contarSlotsLivresPelaHeap());
+        System.out.printf("\n\n=== Resumo do Controle da Heap ===");
+        System.out.printf("\nTotal de slots da heap: %d", heap.getTotalSlots());
+        System.out.printf("\nBlocos alocados: %d", getQuantidadeBlocosAlocados());
+        System.out.printf("\nSlots ocupados pela tabela: %d", contarSlotsOcupadosPelaTabela());
+        System.out.printf("\nSlots livres pela tabela: %d", contarSlotsLivresPelaTabela());
+        System.out.printf("\nSlots ocupados olhando a heap: %d", contarSlotsOcupadosPelaHeap());
+        System.out.printf("\nSlots livres olhando a heap: %d\n", contarSlotsLivresPelaHeap());
+    }
+
+    // compacta a heap movendo todos os blocos ocupados para o início,
+    // eliminando os buracos causados pela fragmentação externa.
+    // deve ser chamada após a liberação aleatória, quando ainda não
+    // há espaço contíguo suficiente para a nova alocação.
+    public void compactar() {
+        int[] memoria = heap.getMemoria();
+        int posicaoEscrita = 0; // próxima posição livre no início da heap
+ 
+        System.out.printf("\nINICIANDO COMPACTAÇÃO\n");
+
+        // percorre toda a heap slot por slot
+        for (int i = 0; i < memoria.length; i++) {
+            // slot ocupado — precisa ser movido para mais perto do início
+            if (memoria[i] != 0) {
+                int idBloco = memoria[i];
+
+                // só processa o primeiro slot de cada bloco
+                // os demais slots do mesmo bloco serão copiados no loop interno
+                BlocoAlocado bloco = buscarBlocoPorId(idBloco);
+
+                // segurança: ignora se o bloco não está na tabela
+                if (bloco == null) continue;
+
+                // salva o início original ANTES de qualquer modificação
+                int inicioOriginal = bloco.getInicio();
+
+                if (inicioOriginal != posicaoEscrita) {
+                    // copia os slots do bloco para a nova posição
+                    for (int j = 0; j < bloco.getTamanhoSlots(); j++) {
+                        memoria[posicaoEscrita + j] = idBloco;
+                    }
+
+                    // apaga os slots antigos do bloco
+                    for (int j = posicaoEscrita + bloco.getTamanhoSlots(); j < inicioOriginal + bloco.getTamanhoSlots(); j++) {
+                        if (j >= 0 && j < memoria.length) {
+                            memoria[j] = 0;
+                        }
+                    }
+
+                    System.out.printf("Bloco ID = %d movido: %d -> %d\n", idBloco, inicioOriginal, posicaoEscrita);
+
+                    // atualiza o início do bloco na tabela
+                    bloco.setInicio(posicaoEscrita);
+                }
+
+                // avança a posição de escrita pelo tamanho do bloco
+                posicaoEscrita += bloco.getTamanhoSlots();
+
+                // usa inicioOriginal para pular corretamente que já foi atualizado para a nova posição
+                i = inicioOriginal + bloco.getTamanhoSlots() - 1;
+            }
+        }
+
+        // zera tudo depois do ultimo bloco
+        for (int x = posicaoEscrita; x < memoria.length; x++) {
+            memoria[x] = 0;
+        }
+
+        System.out.printf("COMPACTAÇÃO CONCLUÍDA. Espaço livre a partir do slot %d\n", posicaoEscrita);
     }
 }

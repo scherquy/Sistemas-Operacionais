@@ -43,8 +43,6 @@ public class Heap {
         }
     }
 
-
-
     public int[] getMemoria() {
         return memoria;
     }
