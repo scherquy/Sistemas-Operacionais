@@ -390,4 +390,15 @@ public class GerenciadorHeap {
 
         System.out.printf("COMPACTAÇÃO CONCLUÍDA. Espaço livre a partir do slot %d\n", posicaoEscrita);
     }
+
+    public int getTotalBlocosLiberados() {
+        return totalBlocosLiberados;
+    }
+
+    public int getTotalChamadasLiberacao() {
+        return totalChamadasLiberacao;
+    }
+
+
+
 }
