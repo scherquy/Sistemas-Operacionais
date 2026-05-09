@@ -20,8 +20,9 @@ public class Compactacao {
     // há espaço contíguo suficiente para a nova alocação.
 
     public void compactar() {
+        gerenciador.incrementaChamadasCompactacao();
         int[] memoria = heap.getMemoria();
-        int posicaoEscrita = 0; 
+        int posicaoEscrita = 0;
 
         System.out.printf("\nINICIANDO COMPACTAÇÃO\n");
 

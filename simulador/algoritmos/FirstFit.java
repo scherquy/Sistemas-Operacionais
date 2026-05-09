@@ -12,56 +12,75 @@ public class FirstFit {
         this.gerenciador = gerenciador;
     }
 
+    // procura o primeiro espaco livre contiguo com tamanho suficiente
+    // retorna o indice inicial do espaço encontrado
+    // se nao encontrar retorna -1
     public int buscarEspaco(int tamanhoSlots) {
-        int[] memoria = heap.getMemoria(); // Obter a referência direta à memória da heap
-        int inicioLivre = -1; 
+        int[] memoria = heap.getMemoria();
+
+        int inicioLivre = -1;
         int contadorLivre = 0;
 
         for (int i = 0; i < memoria.length; i++) {
             if (memoria[i] == 0) {
-                // marca o inicio do bloco livre se ainda não tiver sido marcado
-                if (inicioLivre == -1) inicioLivre = i;
-                
+                if (inicioLivre == -1) {
+                    inicioLivre = i;
+                }
+
                 contadorLivre++;
-                
-                // encontrou espaço suficiente: retorna imediatamente (First Fit)
-                if (contadorLivre >= tamanhoSlots) 
-                return inicioLivre;
-            } else {
-                //bloco ocupado, reinicia a busca por um bloco livre
-                inicioLivre = -1;
-                contadorLivre = 0;
-            }
+
+                if (contadorLivre >= tamanhoSlots) {
+                    return inicioLivre;
+                }
+            }   else {
+                    inicioLivre = -1;
+                    contadorLivre = 0;
+                }
         }
 
         return -1;
     }
-   
-     // tenta alocar um bloco na heap usando First Fit
-    // retorna o ID do bloco alocado, ou -1 se não houver espaço
+
+    // tenta alocar um bloco na heap usando First Fit e retorna o ID do bloco alocado
+    // se nao conseguir alocar retorna -1
     public int alocar(int tamanhoBytes) {
+        if (tamanhoBytes <= 0) {
+            throw new IllegalArgumentException("O tamanho em bytes deve ser maior que zero");
+        }
+
         int tamanhoSlots = heap.converterBytesParaSlots(tamanhoBytes);
+
+        if (tamanhoSlots > heap.getTotalSlots()) {
+            System.out.printf("\nREQUISIÇÃO REJEITADA: tamanho maior que a heap inteira\n");
+            return -1;
+        }
+
         int inicio = buscarEspaco(tamanhoSlots);
 
         if (inicio == -1) {
-            // sem espaço: aciona a liberação aleatória de pelo menos 30% da heap
-            new Libera(heap, gerenciador).liberar();
+            int slotsLivres = gerenciador.contarSlotsLivresPelaHeap();
+
+            if (slotsLivres >= tamanhoSlots) {
+                // existe espaço livre suficiente no total mas ele ta espalhado pela heap entao o problema eh fragmentação externa
+                gerenciador.compactar();
+            } else {
+                // nao existe espaco livre suficiente entao precisa remover blocos aleatorios
+                gerenciador.liberarAleatorio();
+                // depois da liberacao compacta para juntar o espaço livre
+                gerenciador.compactar();
+            }
+
+            // tenta de novo depois da compactacao ou liberacao
             inicio = buscarEspaco(tamanhoSlots);
 
             if (inicio == -1) {
-                // mesmo após liberação segue sem espaço contíguo (frag externa)
-                new Compactacao(heap, gerenciador).compactar();
-                // nova tentativa após a compactação
-                inicio = buscarEspaco(tamanhoSlots);
-
-                if (inicio == -1) {
-                    System.out.printf("\nREQUISIÇÃO REJEITADA: sem espaço após liberação e compactação\n");
-                    return -1;
-                }
+                System.out.printf("\nREQUISIÇÃO REJEITADA: sem espaço após liberação e compactação\n");
+                return -1;
             }
         }
-        // espaço encontrado: gera ID, escreve na heap e registra na tabela
+
         int id = gerenciador.gerarNovoId();
+
         heap.escrever(inicio, tamanhoSlots, id);
         gerenciador.registrarBlocoAlocado(id, inicio, tamanhoBytes, tamanhoSlots);
 

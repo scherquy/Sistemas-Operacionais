@@ -38,14 +38,13 @@ public class Libera {
         for (int i = 0; i < candidatos.size() && slotsLiberados < metaSlots; i++) {
             BlocoAlocado bloco = candidatos.get(i);
 
-            heap.liberar(bloco.getInicio(), bloco.getTamanhoSlots());
-            gerenciador.removerRegistroPorId(bloco.getId());
-            gerenciador.incrementarBlocosLiberados();
+            boolean removeu = gerenciador.liberarPorId(bloco.getId());
 
-            slotsLiberados += bloco.getTamanhoSlots();
+            if (removeu) {
+                slotsLiberados += bloco.getTamanhoSlots();
 
-            System.out.printf("\nRemovido ID = %d | slots = %d | liberado até agora = %d/%d\n",
-                    bloco.getId(), bloco.getTamanhoSlots(), slotsLiberados, metaSlots);
+                System.out.printf("\nID Removido = %d | Slots = %d | Liberado Até Agora = %d/%d\n", bloco.getId(), bloco.getTamanhoSlots(), slotsLiberados, metaSlots);
+            }
         }
 
         if (slotsLiberados < metaSlots) {

@@ -12,6 +12,7 @@ public class GerenciadorHeap {
     private int proximoId;
     private int totalChamadasLiberacao;
     private int totalBlocosLiberados;
+    private int totalChamadasCompactacao;
 
     public GerenciadorHeap(Heap heap) {
         this.heap = heap;
@@ -19,6 +20,7 @@ public class GerenciadorHeap {
         this.proximoId = 1;
         this.totalChamadasLiberacao = 0;
         this.totalBlocosLiberados = 0;
+        this.totalChamadasCompactacao = 0;
     }
 
     public int gerarNovoId() {
@@ -65,6 +67,21 @@ public class GerenciadorHeap {
         return true;
     }
 
+    public boolean liberarPorId(int id) {
+        BlocoAlocado bloco = buscarBlocoPorId(id);
+
+        if (bloco == null) {
+            System.out.printf("\nID %d não encontrado. Nada foi liberado\n", id);
+            return false;
+        }
+
+        heap.liberar(bloco.getInicio(), bloco.getTamanhoSlots());
+        removerRegistroPorId(id);
+        incrementarBlocosLiberados();
+
+        return true;
+    }
+
     public int alocarFirstFit(int tamanhoBytes) {
         return new FirstFit(heap, this).alocar(tamanhoBytes);
     }
@@ -83,6 +100,10 @@ public class GerenciadorHeap {
 
     public void incrementarBlocosLiberados() {
         totalBlocosLiberados++;
+    }
+
+    public void incrementaChamadasCompactacao(){
+        totalChamadasCompactacao++;
     }
 
     public int contarSlotsOcupadosPelaTabela() {
@@ -120,6 +141,10 @@ public class GerenciadorHeap {
 
     public int getTotalChamadasLiberacao() {
         return totalChamadasLiberacao;
+    }
+
+    public int getTotalChamadasCompactacao(){
+        return totalChamadasCompactacao;
     }
 
     public void imprimirTabelaAlocacoes() {
