@@ -154,6 +154,7 @@ public class GerenciadorHeap {
             return;
         }
         for (BlocoAlocado bloco : tabelaAlocacoes) System.out.println(bloco);
+        System.err.println();
     }
 
     public void imprimirBlocosLivresPelaHeap() {
