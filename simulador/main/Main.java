@@ -46,9 +46,22 @@ public class Main {
             return;
         }
 
-        Sequencial simulador = new Sequencial(tamanhoHeapKB, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes);
+        
+        System.out.println("1. Versão Sequenial");
+        System.out.println("2. Versão Paralela");
+        System.out.println("\nEscolha a versão a ser executada (1 ou 2): ");
+        int escolhaVersao = entrada.nextInt();    
 
-        simulador.executar();
+        if(escolhaVersao == 1) {
+            Sequencial simulador = new Sequencial(tamanhoHeapKB, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes);
+            simulador.executar();
+        } else if (escolhaVersao == 2) {
+            Paralelo simulador = new Paralelo(tamanhoHeapKB, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes);
+            simulador.executar();
+        } else {
+            System.out.println("\nERRO. Opção inválida. Escolha 1 ou 2.\n\n");
+        }
+        
 
         entrada.close();
     }

@@ -1,6 +1,7 @@
 package simulador.estatisticas;
 
 import simulador.heap.GerenciadorHeap;
+import java.util.concurrent.Semaphore;
 
 public class Estatisticas {
     private int totalRequisicoesGeradas;
@@ -9,6 +10,8 @@ public class Estatisticas {
     private long somaBytesAlocados;
     private long tempoInicio;
     private long tempoFim;
+
+    private final Semaphore mutex = new Semaphore(1);
 
     public Estatisticas() {
         this.totalRequisicoesGeradas = 0;
@@ -28,14 +31,31 @@ public class Estatisticas {
     }
 
     public void registrarRequisicaoAtendida(int tamanhoBytes) {
-        totalRequisicoesGeradas++;
-        requisicoesAtendidas++;
-        somaBytesAlocados += tamanhoBytes;
+        
+        try{
+            mutex.acquire();
+            totalRequisicoesGeradas++;
+            requisicoesAtendidas++;
+            somaBytesAlocados += tamanhoBytes;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("A thread foi interrompida enquanto registrava uma requisição atendida.");
+        } finally {
+            mutex.release();
+        }
     }
 
     public void registrarRequisicaoFalhada() {
-        totalRequisicoesGeradas++;
-        requisicoesFalhadas++;
+        try{
+            mutex.acquire();
+            totalRequisicoesGeradas++;
+            requisicoesFalhadas++;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("A thread foi interrompida enquanto registrava uma requisição falhada.");
+        } finally {
+            mutex.release();
+        }
     }
 
     public double getTempoTotalMs() {
