@@ -3,8 +3,12 @@ package simulador.heap;
 import simulador.algoritmos.Compactacao;
 import simulador.algoritmos.FirstFit;
 import simulador.algoritmos.Libera;
+import simulador.sincronizacao.SemaforoHeap;
 
 import java.util.ArrayList;
+
+
+
 
 public class GerenciadorHeap {
     private Heap heap;
@@ -13,7 +17,8 @@ public class GerenciadorHeap {
     private int totalChamadasLiberacao;
     private int totalBlocosLiberados;
     private int totalChamadasCompactacao;
-
+    private final SemaforoHeap semaforo;
+  
     public GerenciadorHeap(Heap heap) {
         this.heap = heap;
         this.tabelaAlocacoes = new ArrayList<>();
@@ -21,6 +26,7 @@ public class GerenciadorHeap {
         this.totalChamadasLiberacao = 0;
         this.totalBlocosLiberados = 0;
         this.totalChamadasCompactacao = 0;
+        this.semaforo = new SemaforoHeap();
     }
 
     public int gerarNovoId() {
@@ -83,8 +89,14 @@ public class GerenciadorHeap {
     }
 
     public int alocarFirstFit(int tamanhoBytes) {
-        return new FirstFit(heap, this).alocar(tamanhoBytes);
+        semaforo.adquirir();
+            try {
+                return new FirstFit(heap, this).alocar(tamanhoBytes);
+            } finally {
+                semaforo.liberar();
+            }
     }
+
 
     public void liberarAleatorio() {
         new Libera(heap, this).liberar();
