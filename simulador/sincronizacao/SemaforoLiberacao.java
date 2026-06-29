@@ -1,5 +1,6 @@
 package simulador.sincronizacao;
 
-public class MonitorLiberacao {
+
+public class SemaforoLiberacao {
     
 }
