@@ -13,7 +13,6 @@ public class Compactacao {
         this.gerenciador = gerenciador;
     }
 
-
     // compacta a heap movendo todos os blocos ocupados para o início,
     // eliminando os buracos causados pela fragmentação externa.
     // deve ser chamada após a liberação aleatória, quando ainda não
@@ -61,7 +60,7 @@ public class Compactacao {
                 // avança a posição de escrita pelo tamanho do bloco
                 posicaoEscrita += bloco.getTamanhoSlots();
 
-                // usa inicioOriginal para pular corretamente que já foi atualizado para a nova posição
+                // usa inicio original para pular corretamente que já foi atualizado para a nova posição
                 i = inicioOriginal + bloco.getTamanhoSlots() - 1;
             }
         }

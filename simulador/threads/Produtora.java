@@ -1,68 +1,83 @@
 package simulador.threads;
 
-import simulador.heap.GerenciadorHeap;
-import simulador.estatisticas.Estatisticas;
 import java.util.Random;
+import java.util.concurrent.BlockingQueue;
 
 public class Produtora implements Runnable {
-    
-    private final GerenciadorHeap gerenciadorHeap;
-    private final Estatisticas estatisticas; // Objeto global compartilhado para coletar dados de todas as threads
+
+     // Fila compartilhada entre produtoras e alocadoras.
+     // A produtora coloca requisições nessa fila.
+     // As threads alocadoras retiram essas requisições da fila.
+    private final BlockingQueue<Requisicao> filaRequisicoes;
+
+     // Configurações das requisições
     private final int tamanhoMinimoBytes;
     private final int tamanhoMaximoBytes;
     private final int totalRequisicoesPorThread;
+
+     // Número inicial da primeira requisição gerada por esta produtora.
+     // Isso evita que várias produtoras gerem logs com "Requisição 1",
+     // "Requisição 2" etc. ao mesmo tempo.
+    private final int numeroInicial;
     private final Random random;
 
-    // Construtor para inicializar as configurações desta thread produtora
-    public Produtora(GerenciadorHeap gerenciadorHeap, Estatisticas estatisticas, 
-                     int tamanhoMinimoBytes, int tamanhoMaximoBytes, int totalRequisicoesPorThread) {
-        this.gerenciadorHeap = gerenciadorHeap;
-        this.estatisticas = estatisticas;
+     // o construtor é usado com BlockingQueue.
+     // A produtora vai gerar tamanhos aleatórios, criar objetos Requisicao colocar essas requisições na fila.
+     
+    public Produtora(BlockingQueue<Requisicao> filaRequisicoes, int tamanhoMinimoBytes, int tamanhoMaximoBytes, int totalRequisicoesPorThread, int numeroInicial) {
+        this.filaRequisicoes = filaRequisicoes;
         this.tamanhoMinimoBytes = tamanhoMinimoBytes;
         this.tamanhoMaximoBytes = tamanhoMaximoBytes;
         this.totalRequisicoesPorThread = totalRequisicoesPorThread;
+        this.numeroInicial = numeroInicial;
         this.random = new Random();
     }
 
-    // O método run() define o ponto de entrada e o ciclo de vida da Thread
+     // é executado quando a thread começa.
     @Override
     public void run() {
+        executarComFila();
+    }
+
+     // A produtora só gera requisições e coloca na fila.
+     // Ela não acessa diretamente a heap.
+    private void executarComFila() {
         String nomeThread = Thread.currentThread().getName();
-        System.out.printf("[%s] Iniciada. Gerando %d requisições...\n", nomeThread, totalRequisicoesPorThread);
 
-        for (int i = 1; i <= totalRequisicoesPorThread; i++) {
+        System.out.printf("\n[%s] Iniciada. Gerando %d requisições para a fila.\n", nomeThread, totalRequisicoesPorThread);
+
+        for (int i = 0; i < totalRequisicoesPorThread; i++) {
             int tamanhoBytes = gerarTamanhoAleatorio();
-            
-            // Tenta realizar a alocação na Heap. 
-            // Nota: futuramente, o método alocarFirstFit dentro do GerenciadorHeap 
-            // precisará do Semáforo para proteger o vetor contra condições de corrida.
-            int id = gerenciadorHeap.alocarFirstFit(tamanhoBytes);
 
-            if (id != -1) {
-                // Registra o sucesso nas estatísticas globais
-                estatisticas.registrarRequisicaoAtendida(tamanhoBytes);
-            } else {
-                // Registra a falha se não houver espaço mesmo após liberação/compactação
-                estatisticas.registrarRequisicaoFalhada();
-                System.out.printf("[%s] Requisição %d FALHOU | Tamanho solicitado: %d bytes\n", nomeThread, i, tamanhoBytes);
-            }
+             // Cada requisição recebe um número.
+             // Se numeroInicial = 1, gera 1, 2, 3...
+             // Se numeroInicial = 251, gera 251, 252, 253...
+            int numeroRequisicao = numeroInicial + i;
 
-            // Opcional: Uma micropausa realista (ex: 10ms) para permitir que o escalonador do 
-            // sistema operacional alterne a execução entre as diferentes Threads Produtoras
+            Requisicao requisicao = new Requisicao(numeroRequisicao, tamanhoBytes);
+
             try {
-                Thread.sleep(10); 
+                 // put() coloca a requisição na fila.
+                 // Se a fila estiver cheia, a thread espera até existir espaço. Isso evita perder requisições.
+                filaRequisicoes.put(requisicao);
+
+                System.out.printf("\n[%s] Enviou para a fila: %s", nomeThread, requisicao);
+
             } catch (InterruptedException e) {
-                System.out.printf("[%s] Interrompida inesperadamente.\n", nomeThread);
+                System.err.printf("\n[%s] Foi interrompida enquanto enviava requisição para a fila.\n", nomeThread);
+
+                Thread.currentThread().interrupt();
                 break;
             }
         }
 
-        System.out.printf("[%s] Finalizada. Concluiu suas requisições.\n", nomeThread);
+        System.out.printf("\n[%s] Finalizada. Todas as requisições foram enviadas.\n", nomeThread);
     }
 
-    // Lógica idêntica à que você implementou na versão sequencial
+     // Gera um tamanho aleatório dentro da faixa definida pelo usuário.
     private int gerarTamanhoAleatorio() {
         int intervalo = tamanhoMaximoBytes - tamanhoMinimoBytes;
+        
         return tamanhoMinimoBytes + random.nextInt(intervalo + 1);
     }
 }

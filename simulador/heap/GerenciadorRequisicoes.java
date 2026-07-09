@@ -7,8 +7,6 @@ public class GerenciadorRequisicoes {
     private GerenciadorHeap gerenciadorHeap;
     private Random random;
     private Estatisticas estatisticas;
-
-    // parâmetros configuráveis pelo usuário
     private int tamanhoMinimoBytes;
     private int tamanhoMaximoBytes;
     private int totalRequisicoes;
@@ -51,7 +49,7 @@ public class GerenciadorRequisicoes {
         }   else {
                 estatisticas.registrarRequisicaoFalhada();
                 System.out.printf("\nRequisição %d FALHOU | Tamanho solicitado: %d bytes\n", numeroRequisicao, tamanhoBytes);
-        }
+            }
     }
 
     // executa todas as requisições de forma sequencial e mede o tempo total
@@ -66,7 +64,6 @@ public class GerenciadorRequisicoes {
         }
 
         estatisticas.finalizarTempo();
-
         estatisticas.imprimirResumo(gerenciadorHeap);
     }
 }

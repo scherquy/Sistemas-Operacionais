@@ -31,7 +31,6 @@ public class Estatisticas {
     }
 
     public void registrarRequisicaoAtendida(int tamanhoBytes) {
-        
         try{
             mutex.acquire();
             totalRequisicoesGeradas++;
@@ -39,7 +38,7 @@ public class Estatisticas {
             somaBytesAlocados += tamanhoBytes;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("A thread foi interrompida enquanto registrava uma requisição atendida.");
+            System.err.println("A thread foi interrompida enquanto registrava uma requisição atendida");
         } finally {
             mutex.release();
         }
@@ -52,7 +51,7 @@ public class Estatisticas {
             requisicoesFalhadas++;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("A thread foi interrompida enquanto registrava uma requisição falhada.");
+            System.err.println("A thread foi interrompida enquanto registrava uma requisição falhada");
         } finally {
             mutex.release();
         }
@@ -71,9 +70,9 @@ public class Estatisticas {
     }
 
     public void imprimirResumo(GerenciadorHeap gerenciadorHeap) {
-        System.out.println("\n======================================");
-        System.out.println("       RESUMO FINAL DA EXECUÇÃO");
-        System.out.println("======================================");
+        System.out.printf("\n\n======================================");
+        System.out.printf("\n       RESUMO FINAL DA EXECUÇÃO");
+        System.out.printf("\n======================================");
         System.out.printf("\nTotal de Requisições Geradas: %d", totalRequisicoesGeradas);
         System.out.printf("\nRequisições Alocadas: %d", requisicoesAtendidas);
         System.out.printf("\nRequisições Falhadas: %d", requisicoesFalhadas);
@@ -83,7 +82,7 @@ public class Estatisticas {
         System.out.printf("\nChamadas ao Algoritmo de Liberação: %d", gerenciadorHeap.getTotalChamadasLiberacao());
         System.out.printf("\nChamadas de Compactação: %d", gerenciadorHeap.getTotalChamadasCompactacao());
         System.out.printf("\nTempo Total de Execução: %.2f ms", getTempoTotalMs());
-        System.out.println("\n======================================");
+        System.out.printf("\n\n======================================\n");
     }
 
     public int getTotalRequisicoesGeradas() {

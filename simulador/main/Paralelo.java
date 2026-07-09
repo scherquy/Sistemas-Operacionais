@@ -1,98 +1,157 @@
 package simulador.main;
 
-
 import simulador.heap.GerenciadorHeap;
 import simulador.heap.Heap;
 import simulador.estatisticas.Estatisticas;
+import simulador.threads.Aloca;
 import simulador.threads.Produtora;
-import java.util.ArrayList;
+import simulador.threads.Requisicao;
 
+import java.util.ArrayList;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 public class Paralelo {
 
-    
-// Parâmetros configurados pelo usuário (vindos da Main)
     private final int tamanhoHeapKB;
     private final int tamanhoMinimoBytes;
     private final int tamanhoMaximoBytes;
     private final int totalRequisicoes;
+    private final int numThreadsProdutoras;
 
-    // Definimos uma constante para determinar quantas threads vão simular os programas reais
-    private static final int NUM_THREADS_PRODUTORAS = 4;
+    public Paralelo(int tamanhoHeapKB, int tamanhoMinimoBytes, int tamanhoMaximoBytes, int totalRequisicoes, int numThreadsProdutoras) {
 
+        if (numThreadsProdutoras <= 0) {
+            throw new IllegalArgumentException("O número de threads deve ser maior que zero");
+        }
 
-    public Paralelo(int tamanhoHeapKB, int tamanhoMinimoBytes, int tamanhoMaximoBytes, int totalRequisicoes) {
-        this.tamanhoHeapKB      = tamanhoHeapKB;
+        this.tamanhoHeapKB = tamanhoHeapKB;
         this.tamanhoMinimoBytes = tamanhoMinimoBytes;
         this.tamanhoMaximoBytes = tamanhoMaximoBytes;
-        this.totalRequisicoes   = totalRequisicoes;
+        this.totalRequisicoes = totalRequisicoes;
+        this.numThreadsProdutoras = numThreadsProdutoras;
     }
 
-    
     public void executar() {
-        System.out.printf("\n======================================\n");
-        System.out.printf("      SIMULADOR PARALELO / CONCORRENTE\n");
-        System.out.printf("======================================\n");
-        System.out.printf("Heap: %d KB | Requisições Totais: %d | Threads: %d | Faixa: %d a %d bytes\n", 
-                tamanhoHeapKB, totalRequisicoes, NUM_THREADS_PRODUTORAS, tamanhoMinimoBytes, tamanhoMaximoBytes);
+        System.out.printf("\nSIMULADOR PARALELO\n");
 
-        // 1. Criamos a Heap e o Gerenciador ÚNICO. 
-        // Todas as threads vão operar concorrentemente sobre este mesmo gerenciador.
+         // Para manter simples, usamos o mesmo número de threads produtoras e alocadoras.
+         // Se o usuário escolher 4, teremos 4 produtoras e 4 alocadoras
+
+        int numThreadsAlocadoras = numThreadsProdutoras;
+
+        System.out.printf("Heap: %d KB | Requisições Totais: %d | Produtoras: %d | Alocadoras: %d | Faixa: %d a %d bytes\n", tamanhoHeapKB, totalRequisicoes, numThreadsProdutoras, numThreadsAlocadoras, tamanhoMinimoBytes, tamanhoMaximoBytes);
+
+        
+         // Cria a heap e o gerenciador compartilhado.
+         // Todas as threads alocadoras usam o mesmo gerenciador.    
         Heap heap = new Heap(tamanhoHeapKB);
         GerenciadorHeap gerenciador = new GerenciadorHeap(heap);
 
-        // 2. Criamos o acumulador de estatísticas global.
+         // Estatísticas compartilhadas entre as threads.
         Estatisticas estatisticas = new Estatisticas();
 
-        // 3. Divisão da carga de trabalho: repartimos o total de requisições entre as threads
-        int requisicoesPorThread = totalRequisicoes / NUM_THREADS_PRODUTORAS;
-        int restoRequisicoes = totalRequisicoes % NUM_THREADS_PRODUTORAS;
+         // BlockingQueue é uma fila própria para uso com threads.
+         // A produtora usa put() para inserir.
+         // A alocadora usa take() para retirar.
+         // Se a fila estiver cheia, put() espera.
+         // Se a fila estiver vazia, take() espera.
+        int capacidadeFila = 1000;
 
-        ArrayList<Thread> threadsAtivas = new ArrayList<>();
+        if (totalRequisicoes < capacidadeFila) {
+            capacidadeFila = totalRequisicoes;
+        }
 
-        // Dispara o cronômetro de execução global
+        if (capacidadeFila <= 0) {
+            capacidadeFila = 1;
+        }
+
+        BlockingQueue<Requisicao> filaRequisicoes = new ArrayBlockingQueue<>(capacidadeFila);
+
+        System.out.printf("\nCapacidade da fila de requisições: %d\n", capacidadeFila);
+
+        ArrayList<Thread> threadsProdutoras = new ArrayList<>();
+        ArrayList<Thread> threadsAlocadoras = new ArrayList<>();
+
+         // Divide o total de requisições entre as produtoras.
+        int requisicoesPorThread = totalRequisicoes / numThreadsProdutoras;
+        int restoRequisicoes = totalRequisicoes % numThreadsProdutoras;
+
         estatisticas.iniciarTempo();
 
-        // 4. Laço para criação e inicialização das Threads
-        for (int i = 0; i < NUM_THREADS_PRODUTORAS; i++) {
-            // Se a divisão não for exata, a última thread absorve o resto do trabalho
-            int cargaTrabalho = requisicoesPorThread + (i == NUM_THREADS_PRODUTORAS - 1 ? restoRequisicoes : 0);
+         // Primeiro iniciamos as alocadoras.
+         // Elas ficam esperando requisições aparecerem na fila.
+        for (int i = 0; i < numThreadsAlocadoras; i++) {
+            Aloca alocaRunnable = new Aloca(filaRequisicoes, gerenciador, estatisticas);
 
-            // Passamos as mesmas referências (gerenciador e estatisticas) para todas as produtoras
-            Produtora produtoraRunnable = new Produtora(
-                gerenciador, 
-                estatisticas, 
-                tamanhoMinimoBytes, 
-                tamanhoMaximoBytes, 
-                cargaTrabalho
-            );
+            Thread threadAlocadora = new Thread(alocaRunnable, "Thread-Alocadora-" + (i + 1));
+            threadsAlocadoras.add(threadAlocadora);
+            threadAlocadora.start();
+        }
 
-            // Criamos o objeto encapsulador Thread do Java
+         // Agora iniciamos as produtoras.
+         // Elas geram requisições e colocam na fila.
+        int proximoNumeroRequisicao = 1;
+
+        for (int i = 0; i < numThreadsProdutoras; i++) {
+            int cargaTrabalho = requisicoesPorThread;
+
+            if (i < restoRequisicoes) {
+                cargaTrabalho++;
+            }
+
+            // Cada produtora recebe um número inicial diferente.
+            // Exemplo:
+            // Produtora 1 começa na requisição 1
+            // Produtora 2 começa depois da última requisição da produtora 1
+            int numeroInicial = proximoNumeroRequisicao;
+
+            Produtora produtoraRunnable = new Produtora(filaRequisicoes, tamanhoMinimoBytes, tamanhoMaximoBytes, cargaTrabalho, numeroInicial);
+
+            // Atualiza o próximo número inicial para a próxima produtora.
+            proximoNumeroRequisicao += cargaTrabalho;
+
             Thread threadProdutora = new Thread(produtoraRunnable, "Thread-Produtora-" + (i + 1));
-            threadsAtivas.add(threadProdutora);
-
-            // O método .start() sinaliza ao Sistema Operacional que a thread pode começar a rodar assincronamente
+            threadsProdutoras.add(threadProdutora);
             threadProdutora.start();
         }
 
-        // 5. Ponto de Sincronização (Barreira): 
-        // A thread principal (main) precisa travar e esperar que todas as produtoras finalizem.
-        for (Thread thread : threadsAtivas) {
+         // Espera todas as produtoras terminarem.
+         // Quando isso acontecer, significa que todas as requisições já foram colocadas na fila.
+        for (Thread thread : threadsProdutoras) {
             try {
-                thread.join(); // Espera até que a thread em questão encerre o seu método run()
+                thread.join();
             } catch (InterruptedException e) {
-                System.err.println("Erro: A thread principal de controle foi interrompida de forma inesperada.");
+                System.err.printf("\nErro: a thread principal foi interrompida enquanto aguardava as produtoras.\n");
+                Thread.currentThread().interrupt();
+                return;
             }
         }
 
-        // Para o cronômetro assim que a última thread produtora terminar o processamento
-        estatisticas.finalizarTempo();
+         // enviamos sinais de encerramento para as alocadoras.
+         // enviamos uma requisição de fim para cada alocadora.
+        for (int i = 0; i < numThreadsAlocadoras; i++) {
+            try {
+                filaRequisicoes.put(Requisicao.criarRequisicaoFim());
+            } catch (InterruptedException e) {
+                System.err.printf("\nErro ao enviar requisição de encerramento.\n");
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
 
-        // 6. Impressão dos Resultados Consolidados
-        // O método imprimirResumo lerá os dados concorrentes já acumulados em 'estatisticas'
+         // Espera todas as alocadoras terminarem.
+        for (Thread thread : threadsAlocadoras) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                System.err.printf("\nERRO.  thread principal foi interrompida enquanto aguardava as alocadoras.\n");
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+
+        estatisticas.finalizarTempo();
         estatisticas.imprimirResumo(gerenciador);
     }
 }
-
-
-

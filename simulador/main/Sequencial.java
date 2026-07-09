@@ -21,9 +21,7 @@ public class Sequencial {
     }
  
     public void executar() {
-        System.out.printf("\n======================================\n");
-        System.out.printf("      SIMULADOR SEQUENCIAL\n");
-        System.out.printf("======================================\n");
+        System.out.printf("\nSIMULADOR SEQUENCIAL\n");
         System.out.printf("Heap: %d KB | Requisições: %d | Faixa: %d a %d bytes\n", tamanhoHeapKB, totalRequisicoes, tamanhoMinimoBytes, tamanhoMaximoBytes);
  
         Heap heap = new Heap(tamanhoHeapKB);
@@ -33,7 +31,6 @@ public class Sequencial {
  
         // cria o gerador de requisicoes e executa o loop sequencial
         GerenciadorRequisicoes gerador = new GerenciadorRequisicoes(gerenciador, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes);
- 
         gerador.executar();
     }
 }

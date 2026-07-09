@@ -7,9 +7,6 @@ import simulador.sincronizacao.SemaforoHeap;
 
 import java.util.ArrayList;
 
-
-
-
 public class GerenciadorHeap {
     private Heap heap;
     private ArrayList<BlocoAlocado> tabelaAlocacoes;
@@ -73,7 +70,36 @@ public class GerenciadorHeap {
         return true;
     }
 
+    // Este método pega o semáforo antes de modificar a heap.
+    // é usado quando a chamada vem de fora da seção crítica.
+    
     public boolean liberarPorId(int id) {
+        boolean entrou = semaforo.adquirir();
+
+        if (!entrou) {
+            System.err.printf("\nERRO. Não foi possível acessar a heap para liberar o ID %d.\n", id);
+            return false;
+        }
+
+        try {
+            return liberarPorIdInterno(id);
+        }   finally {
+                semaforo.liberar();
+            }
+    }
+
+    /*
+    Método interno para liberar um bloco pelo ID.
+
+    Este método não pega o semáforo.
+    Ele é ser usado só quando a thread já está dentro da seção crítica.
+
+    Exemplo:
+    A liberação RANDOM já é chamada dentro do FirstFit.
+    O FirstFit já roda dentro de alocarFirstFit().
+    Então o semáforo já foi adquirido.
+    */
+    public boolean liberarPorIdInterno(int id) {
         BlocoAlocado bloco = buscarBlocoPorId(id);
 
         if (bloco == null) {
@@ -89,20 +115,102 @@ public class GerenciadorHeap {
     }
 
     public int alocarFirstFit(int tamanhoBytes) {
-        semaforo.adquirir();
-            try {
-                return new FirstFit(heap, this).alocar(tamanhoBytes);
-            } finally {
+
+    /*
+     Este método precisa ser protegido porque várias threads podem tentar alocar memória ao mesmo tempo.
+     
+     Dentro do FirstFit podem acontecer várias operações perigosas se forem executadas por múltiplas threads simultaneamente:
+     
+     Buscar espaço livre na heap;
+     Gerar um novo ID;
+     Escrever o ID dentro do vetor da heap;
+     Registrar o bloco na tabela de alocações;
+     Liberar blocos aleatórios, se não houver espaço;
+     Compactar a heap, se houver fragmentação.
+     
+     usamos o semáforo para permitir que apenas uma thread por vez execute essa parte do código.
+     */
+
+        boolean entrou = semaforo.adquirir();
+
+        if (!entrou) {
+            System.err.printf("\nNão foi possível acessar a heap. Alocação cancelada.\n");
+            return -1;
+        }
+
+        try {
+            return new FirstFit(heap, this).alocar(tamanhoBytes);
+        }   finally {
+            semaforo.liberar();
+            }
+    }
+
+    /*
+    Método para chamar a liberação aleatória
+ 
+    Ele adquire o semáforo antes de liberar blocos da heap.
+    Assim, nenhuma outra thread consegue alocar, liberar ou compactar ao mesmo tempo.
+ */
+    public void liberarAleatorio() {
+        boolean entrou = semaforo.adquirir();
+
+        if (!entrou) {
+            System.err.printf("\nERRO. Não foi possível acessar a heap para realizar a liberação aleatória\n");
+            return;
+        }
+
+        try {
+            liberarAleatorioInterno();
+        } finally {
+            semaforo.liberar();
+        }
+    }
+
+    /*
+    Método interno de liberação aleatória.
+ 
+    Este método não pega o semáforo.
+    Ele é usado só quando a thread já está dentro da seção crítica da heap.
+ 
+    Exemplo:
+    O FirstFit já é chamado dentro de alocarFirstFit(), e alocarFirstFit() já protege a heap com semáforo.
+    */
+    public void liberarAleatorioInterno() {
+        new Libera(heap, this).liberar();
+    }
+
+    /*
+    Método para chamar a compactação diretamente.
+
+    Ele pega o semáforo antes de compactar a heap.
+    Assim, nenhuma outra thread consegue alocar, liberar ou compactar ao mesmo tempo.
+    */
+    public void compactar() {
+        boolean entrou = semaforo.adquirir();
+
+        if (!entrou) {
+            System.err.printf("\nERRO. Não foi possível acessar a heap para realizar a compactação.\n");
+            return;
+        }
+
+        try {
+            compactarInterno();
+        }   finally {
                 semaforo.liberar();
             }
     }
 
+    /*
+    Método interno de compactação.
 
-    public void liberarAleatorio() {
-        new Libera(heap, this).liberar();
-    }
+    Este método não pega o semáforo.
+    Ele deve ser usado apenas quando a thread já está dentro da seção crítica da heap.
 
-    public void compactar() {
+    Exemplo:
+    O FirstFit já roda dentro de alocarFirstFit().
+    Então, dentro do FirstFit, usamos compactarInterno().
+    */
+    public void compactarInterno() {
         new Compactacao(heap, this).compactar();
     }
 
@@ -193,8 +301,7 @@ public class GerenciadorHeap {
     }
 
     private void imprimirBlocoLivre(int inicio, int tamanhoSlots) {
-        System.out.println("Livre | Início: " + inicio + " | Fim: " + (inicio + tamanhoSlots - 1)
-                + " | Slots: " + tamanhoSlots + " | Bytes: " + (tamanhoSlots * 4));
+        System.out.printf("Livre | Início: %d | Fim: %d | Slots: %d | Bytes: %d\n", inicio, inicio + tamanhoSlots - 1, tamanhoSlots, tamanhoSlots * 4);
     }
 
     public void imprimirResumoControle() {

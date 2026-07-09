@@ -12,7 +12,7 @@ public class TesteCompactacao {
         int id2 = gerenciador.alocarFirstFit(16); // 16 bytes = 4 slots
         int id3 = gerenciador.alocarFirstFit(16); // 16 bytes = 4 slots
 
-        System.out.println("\n===== TESTE DE COMPACTAÇÃO =====");
+        System.out.println("\nTESTE DE COMPACTAÇÃO");
 
         System.out.println("\nIDs alocados:");
         System.out.println("ID 1: " + id1);
@@ -39,24 +39,12 @@ public class TesteCompactacao {
 
         int[] memoria = heap.getMemoria();
 
-        boolean compactacaoCorreta =
-                memoria[0] == id1 &&
-                memoria[1] == id1 &&
-                memoria[2] == id1 &&
-                memoria[3] == id1 &&
-                memoria[4] == id3 &&
-                memoria[5] == id3 &&
-                memoria[6] == id3 &&
-                memoria[7] == id3 &&
-                memoria[8] == 0 &&
-                memoria[9] == 0 &&
-                memoria[10] == 0 &&
-                memoria[11] == 0;
+        boolean compactacaoCorreta = memoria[0] == id1 && memoria[1] == id1 && memoria[2] == id1 && memoria[3] == id1 && memoria[4] == id3 && memoria[5] == id3 && memoria[6] == id3 && memoria[7] == id3 && memoria[8] == 0 && memoria[9] == 0 && memoria[10] == 0 && memoria[11] == 0;
 
         if (compactacaoCorreta) {
             System.out.println("\nRESULTADO OK - A compactação removeu o buraco corretamente");
-        } else {
-            System.out.println("\nERRO - A compactação não produziu o resultado esperado");
-        }
+        }   else {
+                System.out.println("\nERRO - A compactação não produziu o resultado esperado");
+            }
     }
 }
