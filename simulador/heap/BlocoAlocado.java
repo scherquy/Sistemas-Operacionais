@@ -1,10 +1,10 @@
 package simulador.heap;
 
 public class BlocoAlocado {
-    private int id;
+    private final int id;
     private int inicio;
-    private int tamanhoSolicitadoBytes;
-    private int tamanhoSlots;
+    private final int tamanhoSolicitadoBytes;
+    private final int tamanhoSlots;
 
     public BlocoAlocado(int id, int inicio, int tamanhoSolicitadoBytes, int tamanhoSlots) {
         this.id = id;

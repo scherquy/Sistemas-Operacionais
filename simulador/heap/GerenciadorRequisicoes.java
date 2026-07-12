@@ -1,18 +1,19 @@
 package simulador.heap;
 
 import simulador.estatisticas.Estatisticas;
+
 import java.util.Random;
 
 public class GerenciadorRequisicoes {
-    private GerenciadorHeap gerenciadorHeap;
-    private Random random;
-    private Estatisticas estatisticas;
-    private int tamanhoMinimoBytes;
-    private int tamanhoMaximoBytes;
-    private int totalRequisicoes;
+    private final GerenciadorHeap gerenciadorHeap;
+    private final Random random;
+    private final Estatisticas estatisticas;
+    private final int tamanhoMinimoBytes;
+    private final int tamanhoMaximoBytes;
+    private final int totalRequisicoes;
+    private final int[] tamanhosRequisicoes;
 
     public GerenciadorRequisicoes(GerenciadorHeap gerenciadorHeap, int tamanhoMinimoBytes, int tamanhoMaximoBytes, int totalRequisicoes) {
-
         if (tamanhoMinimoBytes <= 0) {
             throw new IllegalArgumentException("O tamanho mínimo deve ser maior que zero.");
         }
@@ -31,39 +32,52 @@ public class GerenciadorRequisicoes {
         this.tamanhoMinimoBytes = tamanhoMinimoBytes;
         this.tamanhoMaximoBytes = tamanhoMaximoBytes;
         this.totalRequisicoes = totalRequisicoes;
+        this.tamanhosRequisicoes = null;
     }
 
-    // gera um tamanho aleatório entre o mínimo e máximo configurados
+    public GerenciadorRequisicoes(GerenciadorHeap gerenciadorHeap, int[] tamanhosRequisicoes) {
+        this.gerenciadorHeap = gerenciadorHeap;
+        this.random = new Random();
+        this.estatisticas = new Estatisticas();
+        this.tamanhoMinimoBytes = 0;
+        this.tamanhoMaximoBytes = 0;
+        this.totalRequisicoes = tamanhosRequisicoes.length;
+        this.tamanhosRequisicoes = tamanhosRequisicoes;
+    }
+
     private int gerarTamanhoAleatorio() {
         int intervalo = tamanhoMaximoBytes - tamanhoMinimoBytes;
+
         return tamanhoMinimoBytes + random.nextInt(intervalo + 1);
     }
 
-    // processa uma única requisição: gera o tamanho, tenta alocar e registra o resultado
-    private void processarRequisicao(int numeroRequisicao) {
-        int tamanhoBytes = gerarTamanhoAleatorio();
+    private void processarRequisicao(int tamanhoBytes) {
         int id = gerenciadorHeap.alocarFirstFit(tamanhoBytes);
 
         if (id != -1) {
             estatisticas.registrarRequisicaoAtendida(tamanhoBytes);
-        }   else {
-                estatisticas.registrarRequisicaoFalhada();
-                System.out.printf("\nRequisição %d FALHOU | Tamanho solicitado: %d bytes\n", numeroRequisicao, tamanhoBytes);
-            }
+        } else {
+            estatisticas.registrarRequisicaoFalhada();
+        }
     }
 
-    // executa todas as requisições de forma sequencial e mede o tempo total
-    public void executar() {
-        System.out.printf("\n=== Iniciando Gerador de Requisições ===");
-        System.out.printf("\nTotal de requisições: %d | Faixa: %d a %d bytes\n", totalRequisicoes, tamanhoMinimoBytes, tamanhoMaximoBytes);
-
+    public Estatisticas executar() {
         estatisticas.iniciarTempo();
 
-        for (int i = 1; i <= totalRequisicoes; i++) {
-            processarRequisicao(i);
+        if (tamanhosRequisicoes == null) {
+            for (int i = 1; i <= totalRequisicoes; i++) {
+                int tamanhoBytes = gerarTamanhoAleatorio();
+                processarRequisicao(tamanhoBytes);
+            }
+        } else {
+            for (int i = 0; i < tamanhosRequisicoes.length; i++) {
+                processarRequisicao(tamanhosRequisicoes[i]);
+            }
         }
 
         estatisticas.finalizarTempo();
         estatisticas.imprimirResumo(gerenciadorHeap);
+
+        return estatisticas;
     }
 }

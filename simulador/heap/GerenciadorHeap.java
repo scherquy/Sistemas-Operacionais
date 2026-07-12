@@ -6,104 +6,203 @@ import simulador.algoritmos.Libera;
 import simulador.sincronizacao.SemaforoHeap;
 
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class GerenciadorHeap {
-    private Heap heap;
-    private ArrayList<BlocoAlocado> tabelaAlocacoes;
-    private int proximoId;
-    private int totalChamadasLiberacao;
-    private int totalBlocosLiberados;
-    private int totalChamadasCompactacao;
-    private final SemaforoHeap semaforo;
-  
+    private final Heap heap;
+    private final ArrayList<BlocoAlocado> tabelaAlocacoes;
+    private final AtomicInteger proximoId;
+    private final AtomicInteger totalChamadasLiberacao;
+    private final AtomicInteger totalBlocosLiberados;
+    private final AtomicInteger totalChamadasCompactacao;
+    private final SemaforoHeap[] semaforosSegmentos;
+    private final SemaforoHeap semaforoTabela;
+
     public GerenciadorHeap(Heap heap) {
+        this(heap, 1);
+    }
+
+    public GerenciadorHeap(Heap heap, int totalSegmentos) {
+        if (totalSegmentos <= 0) {
+            totalSegmentos = 1;
+        }
+
         this.heap = heap;
         this.tabelaAlocacoes = new ArrayList<>();
-        this.proximoId = 1;
-        this.totalChamadasLiberacao = 0;
-        this.totalBlocosLiberados = 0;
-        this.totalChamadasCompactacao = 0;
-        this.semaforo = new SemaforoHeap();
+        this.proximoId = new AtomicInteger(1);
+        this.totalChamadasLiberacao = new AtomicInteger(0);
+        this.totalBlocosLiberados = new AtomicInteger(0);
+        this.totalChamadasCompactacao = new AtomicInteger(0);
+        this.semaforosSegmentos = new SemaforoHeap[totalSegmentos];
+        this.semaforoTabela = new SemaforoHeap();
+
+        for (int i = 0; i < totalSegmentos; i++) {
+            semaforosSegmentos[i] = new SemaforoHeap();
+        }
+    }
+
+    public int alocarFirstFit(int tamanhoBytes) {
+        int tamanhoSlots = heap.converterBytesParaSlots(tamanhoBytes);
+
+        if (tamanhoBytes <= 0 || tamanhoSlots > heap.getTotalSlots()) {
+            return -1;
+        }
+
+        int inicioSegmento = Math.abs(Thread.currentThread().getName().hashCode()) % semaforosSegmentos.length;
+
+        for (int tentativa = 0; tentativa < semaforosSegmentos.length; tentativa++) {
+            int segmento = (inicioSegmento + tentativa) % semaforosSegmentos.length;
+
+            if (semaforosSegmentos[segmento].tentarAdquirir()) {
+                int id = alocarNoSegmento(tamanhoBytes, tamanhoSlots, segmento);
+
+                semaforosSegmentos[segmento].liberar();
+
+                if (id != -1) {
+                    return id;
+                }
+            }
+        }
+
+        return alocarComBloqueioGlobal(tamanhoBytes, tamanhoSlots);
+    }
+
+    private int alocarNoSegmento(int tamanhoBytes, int tamanhoSlots, int segmento) {
+        int inicioSegmento = calcularInicioSegmento(segmento);
+        int fimSegmento = calcularFimSegmento(segmento);
+
+        FirstFit firstFit = new FirstFit(heap);
+        int inicio = firstFit.buscarEspaco(tamanhoSlots, inicioSegmento, fimSegmento);
+
+        if (inicio == -1) {
+            return -1;
+        }
+
+        int id = gerarNovoId();
+
+        heap.escrever(inicio, tamanhoSlots, id);
+        registrarBlocoAlocado(id, inicio, tamanhoBytes, tamanhoSlots);
+
+        return id;
+    }
+
+    private int alocarComBloqueioGlobal(int tamanhoBytes, int tamanhoSlots) {
+        adquirirTodosSegmentos();
+
+        FirstFit firstFit = new FirstFit(heap);
+        int inicio = firstFit.buscarEspaco(tamanhoSlots);
+
+        if (inicio == -1) {
+            int slotsLivres = contarSlotsLivresPelaHeap();
+
+            if (slotsLivres >= tamanhoSlots) {
+                compactarInterno();
+            } else {
+                liberarAleatorioInterno();
+                compactarInterno();
+            }
+
+            inicio = firstFit.buscarEspaco(tamanhoSlots);
+        }
+
+        int id = -1;
+
+        if (inicio != -1) {
+            id = gerarNovoId();
+
+            heap.escrever(inicio, tamanhoSlots, id);
+            registrarBlocoAlocado(id, inicio, tamanhoBytes, tamanhoSlots);
+        }
+
+        liberarTodosSegmentos();
+
+        return id;
+    }
+
+    private void adquirirTodosSegmentos() {
+        for (SemaforoHeap semaforo : semaforosSegmentos) {
+            semaforo.adquirir();
+        }
+    }
+
+    private void liberarTodosSegmentos() {
+        for (SemaforoHeap semaforo : semaforosSegmentos) {
+            semaforo.liberar();
+        }
+    }
+
+    private int calcularInicioSegmento(int segmento) {
+        return (heap.getTotalSlots() * segmento) / semaforosSegmentos.length;
+    }
+
+    private int calcularFimSegmento(int segmento) {
+        return (heap.getTotalSlots() * (segmento + 1)) / semaforosSegmentos.length;
     }
 
     public int gerarNovoId() {
-        return proximoId++;
+        return proximoId.getAndIncrement();
     }
 
     public void registrarBlocoAlocado(int id, int inicio, int tamanhoSolicitadoBytes, int tamanhoSlots) {
-        if (id <= 0) throw new IllegalArgumentException("O ID deve ser maior que zero");
-        if (tamanhoSlots <= 0) throw new IllegalArgumentException("O tamanho em slots deve ser maior que zero");
-        if (!intervaloEstaDentroDaHeap(inicio, tamanhoSlots)) throw new IllegalArgumentException("O bloco está fora dos limites da heap");
-        if (buscarBlocoPorId(id) != null) throw new IllegalArgumentException("Já existe um bloco com o ID " + id);
+        semaforoTabela.adquirir();
 
         tabelaAlocacoes.add(new BlocoAlocado(id, inicio, tamanhoSolicitadoBytes, tamanhoSlots));
+
+        semaforoTabela.liberar();
     }
 
     public BlocoAlocado buscarBlocoPorId(int id) {
+        semaforoTabela.adquirir();
+
+        BlocoAlocado resultado = null;
+
         for (BlocoAlocado bloco : tabelaAlocacoes) {
-            if (bloco.getId() == id) return bloco;
+            if (bloco.getId() == id) {
+                resultado = bloco;
+                break;
+            }
         }
-        return null;
+
+        semaforoTabela.liberar();
+
+        return resultado;
     }
 
     public boolean removerRegistroPorId(int id) {
+        semaforoTabela.adquirir();
+
+        boolean removeu = false;
+
         for (int i = 0; i < tabelaAlocacoes.size(); i++) {
             if (tabelaAlocacoes.get(i).getId() == id) {
                 tabelaAlocacoes.remove(i);
-                return true;
+                removeu = true;
+                break;
             }
         }
-        return false;
+
+        semaforoTabela.liberar();
+
+        return removeu;
     }
 
-    public boolean intervaloEstaDentroDaHeap(int inicio, int tamanhoSlots) {
-        if (inicio < 0 || tamanhoSlots <= 0) return false;
-        return (inicio + tamanhoSlots - 1) < heap.getTotalSlots();
-    }
+    public void atualizarInicioBloco(int id, int novoInicio) {
+        semaforoTabela.adquirir();
 
-    public boolean intervaloEstaLivre(int inicio, int tamanhoSlots) {
-        if (!intervaloEstaDentroDaHeap(inicio, tamanhoSlots)) return false;
-        int[] memoria = heap.getMemoria();
-        for (int i = inicio; i < inicio + tamanhoSlots; i++) {
-            if (memoria[i] != 0) return false;
-        }
-        return true;
-    }
-
-    // Este método pega o semáforo antes de modificar a heap.
-    // é usado quando a chamada vem de fora da seção crítica.
-    
-    public boolean liberarPorId(int id) {
-        boolean entrou = semaforo.adquirir();
-
-        if (!entrou) {
-            System.err.printf("\nERRO. Não foi possível acessar a heap para liberar o ID %d.\n", id);
-            return false;
-        }
-
-        try {
-            return liberarPorIdInterno(id);
-        }   finally {
-                semaforo.liberar();
+        for (BlocoAlocado bloco : tabelaAlocacoes) {
+            if (bloco.getId() == id) {
+                bloco.setInicio(novoInicio);
+                break;
             }
+        }
+
+        semaforoTabela.liberar();
     }
 
-    /*
-    Método interno para liberar um bloco pelo ID.
-
-    Este método não pega o semáforo.
-    Ele é ser usado só quando a thread já está dentro da seção crítica.
-
-    Exemplo:
-    A liberação RANDOM já é chamada dentro do FirstFit.
-    O FirstFit já roda dentro de alocarFirstFit().
-    Então o semáforo já foi adquirido.
-    */
     public boolean liberarPorIdInterno(int id) {
         BlocoAlocado bloco = buscarBlocoPorId(id);
 
         if (bloco == null) {
-            System.out.printf("\nID %d não encontrado. Nada foi liberado\n", id);
             return false;
         }
 
@@ -114,121 +213,45 @@ public class GerenciadorHeap {
         return true;
     }
 
-    public int alocarFirstFit(int tamanhoBytes) {
-
-    /*
-     Este método precisa ser protegido porque várias threads podem tentar alocar memória ao mesmo tempo.
-     
-     Dentro do FirstFit podem acontecer várias operações perigosas se forem executadas por múltiplas threads simultaneamente:
-     
-     Buscar espaço livre na heap;
-     Gerar um novo ID;
-     Escrever o ID dentro do vetor da heap;
-     Registrar o bloco na tabela de alocações;
-     Liberar blocos aleatórios, se não houver espaço;
-     Compactar a heap, se houver fragmentação.
-     
-     usamos o semáforo para permitir que apenas uma thread por vez execute essa parte do código.
-     */
-
-        boolean entrou = semaforo.adquirir();
-
-        if (!entrou) {
-            System.err.printf("\nNão foi possível acessar a heap. Alocação cancelada.\n");
-            return -1;
-        }
-
-        try {
-            return new FirstFit(heap, this).alocar(tamanhoBytes);
-        }   finally {
-            semaforo.liberar();
-            }
-    }
-
-    /*
-    Método para chamar a liberação aleatória
- 
-    Ele adquire o semáforo antes de liberar blocos da heap.
-    Assim, nenhuma outra thread consegue alocar, liberar ou compactar ao mesmo tempo.
- */
     public void liberarAleatorio() {
-        boolean entrou = semaforo.adquirir();
-
-        if (!entrou) {
-            System.err.printf("\nERRO. Não foi possível acessar a heap para realizar a liberação aleatória\n");
-            return;
-        }
-
-        try {
-            liberarAleatorioInterno();
-        } finally {
-            semaforo.liberar();
-        }
+        adquirirTodosSegmentos();
+        liberarAleatorioInterno();
+        liberarTodosSegmentos();
     }
 
-    /*
-    Método interno de liberação aleatória.
- 
-    Este método não pega o semáforo.
-    Ele é usado só quando a thread já está dentro da seção crítica da heap.
- 
-    Exemplo:
-    O FirstFit já é chamado dentro de alocarFirstFit(), e alocarFirstFit() já protege a heap com semáforo.
-    */
     public void liberarAleatorioInterno() {
         new Libera(heap, this).liberar();
     }
 
-    /*
-    Método para chamar a compactação diretamente.
-
-    Ele pega o semáforo antes de compactar a heap.
-    Assim, nenhuma outra thread consegue alocar, liberar ou compactar ao mesmo tempo.
-    */
     public void compactar() {
-        boolean entrou = semaforo.adquirir();
-
-        if (!entrou) {
-            System.err.printf("\nERRO. Não foi possível acessar a heap para realizar a compactação.\n");
-            return;
-        }
-
-        try {
-            compactarInterno();
-        }   finally {
-                semaforo.liberar();
-            }
+        adquirirTodosSegmentos();
+        compactarInterno();
+        liberarTodosSegmentos();
     }
 
-    /*
-    Método interno de compactação.
-
-    Este método não pega o semáforo.
-    Ele deve ser usado apenas quando a thread já está dentro da seção crítica da heap.
-
-    Exemplo:
-    O FirstFit já roda dentro de alocarFirstFit().
-    Então, dentro do FirstFit, usamos compactarInterno().
-    */
     public void compactarInterno() {
         new Compactacao(heap, this).compactar();
     }
 
-    public void incrementarChamadasLiberacao() {
-        totalChamadasLiberacao++;
-    }
+    public boolean intervaloEstaDentroDaHeap(int inicio, int tamanhoSlots) {
+        if (inicio < 0 || tamanhoSlots <= 0) {
+            return false;
+        }
 
-    public void incrementarBlocosLiberados() {
-        totalBlocosLiberados++;
-    }
-
-    public void incrementaChamadasCompactacao(){
-        totalChamadasCompactacao++;
+        return (inicio + tamanhoSlots - 1) < heap.getTotalSlots();
     }
 
     public int contarSlotsOcupadosPelaTabela() {
         int total = 0;
-        for (BlocoAlocado bloco : tabelaAlocacoes) total += bloco.getTamanhoSlots();
+
+        semaforoTabela.adquirir();
+
+        for (BlocoAlocado bloco : tabelaAlocacoes) {
+            total += bloco.getTamanhoSlots();
+        }
+
+        semaforoTabela.liberar();
+
         return total;
     }
 
@@ -239,7 +262,13 @@ public class GerenciadorHeap {
     public int contarSlotsLivresPelaHeap() {
         int[] memoria = heap.getMemoria();
         int livres = 0;
-        for (int slot : memoria) if (slot == 0) livres++;
+
+        for (int slot : memoria) {
+            if (slot == 0) {
+                livres++;
+            }
+        }
+
         return livres;
     }
 
@@ -248,69 +277,46 @@ public class GerenciadorHeap {
     }
 
     public ArrayList<BlocoAlocado> getTabelaAlocacoes() {
-        return tabelaAlocacoes;
+        semaforoTabela.adquirir();
+
+        ArrayList<BlocoAlocado> copia = new ArrayList<>(tabelaAlocacoes);
+
+        semaforoTabela.liberar();
+
+        return copia;
     }
 
     public int getQuantidadeBlocosAlocados() {
-        return tabelaAlocacoes.size();
+        semaforoTabela.adquirir();
+
+        int quantidade = tabelaAlocacoes.size();
+
+        semaforoTabela.liberar();
+
+        return quantidade;
+    }
+
+    public void incrementarChamadasLiberacao() {
+        totalChamadasLiberacao.incrementAndGet();
+    }
+
+    public void incrementarBlocosLiberados() {
+        totalBlocosLiberados.incrementAndGet();
+    }
+
+    public void incrementaChamadasCompactacao() {
+        totalChamadasCompactacao.incrementAndGet();
     }
 
     public int getTotalBlocosLiberados() {
-        return totalBlocosLiberados;
+        return totalBlocosLiberados.get();
     }
 
     public int getTotalChamadasLiberacao() {
-        return totalChamadasLiberacao;
+        return totalChamadasLiberacao.get();
     }
 
-    public int getTotalChamadasCompactacao(){
-        return totalChamadasCompactacao;
-    }
-
-    public void imprimirTabelaAlocacoes() {
-        System.out.printf("\n=== Tabela de Blocos Ocupados ===\n");
-        if (tabelaAlocacoes.isEmpty()) {
-            System.out.printf("Nenhum bloco alocado\n");
-            return;
-        }
-        for (BlocoAlocado bloco : tabelaAlocacoes) System.out.println(bloco);
-        System.err.println();
-    }
-
-    public void imprimirBlocosLivresPelaHeap() {
-        System.out.printf("\n=== Blocos Livres na Heap ===\n");
-        int[] memoria = heap.getMemoria();
-        int inicioLivre = -1;
-        int tamanhoLivre = 0;
-        boolean encontrouLivre = false;
-
-        for (int i = 0; i < memoria.length; i++) {
-            if (memoria[i] == 0) {
-                if (inicioLivre == -1) { inicioLivre = i; tamanhoLivre = 1; }
-                else tamanhoLivre++;
-            } else if (inicioLivre != -1) {
-                imprimirBlocoLivre(inicioLivre, tamanhoLivre);
-                encontrouLivre = true;
-                inicioLivre = -1;
-                tamanhoLivre = 0;
-            }
-        }
-
-        if (inicioLivre != -1) { imprimirBlocoLivre(inicioLivre, tamanhoLivre); encontrouLivre = true; }
-        if (!encontrouLivre) System.out.printf("\nNão tem blocos livres\n");
-    }
-
-    private void imprimirBlocoLivre(int inicio, int tamanhoSlots) {
-        System.out.printf("Livre | Início: %d | Fim: %d | Slots: %d | Bytes: %d\n", inicio, inicio + tamanhoSlots - 1, tamanhoSlots, tamanhoSlots * 4);
-    }
-
-    public void imprimirResumoControle() {
-        System.out.printf("\n\n=== Resumo do Controle da Heap ===");
-        System.out.printf("\nTotal de slots da heap: %d", heap.getTotalSlots());
-        System.out.printf("\nBlocos alocados: %d", getQuantidadeBlocosAlocados());
-        System.out.printf("\nSlots ocupados pela tabela: %d", contarSlotsOcupadosPelaTabela());
-        System.out.printf("\nSlots livres pela tabela: %d", contarSlotsLivresPelaTabela());
-        System.out.printf("\nSlots ocupados olhando a heap: %d", contarSlotsOcupadosPelaHeap());
-        System.out.printf("\nSlots livres olhando a heap: %d\n", contarSlotsLivresPelaHeap());
+    public int getTotalChamadasCompactacao() {
+        return totalChamadasCompactacao.get();
     }
 }

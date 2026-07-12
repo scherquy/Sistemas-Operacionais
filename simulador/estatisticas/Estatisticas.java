@@ -1,23 +1,31 @@
 package simulador.estatisticas;
 
 import simulador.heap.GerenciadorHeap;
-import java.util.concurrent.Semaphore;
+
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Estatisticas {
-    private int totalRequisicoesGeradas;
-    private int requisicoesAtendidas;
-    private int requisicoesFalhadas;
-    private long somaBytesAlocados;
+    private final AtomicInteger totalRequisicoesGeradas;
+    private final AtomicInteger requisicoesAtendidas;
+    private final AtomicInteger requisicoesFalhadas;
+    private final AtomicLong somaBytesAlocados;
+
+    private int totalBlocosRemovidos;
+    private int chamadasLiberacao;
+    private int chamadasCompactacao;
+
     private long tempoInicio;
     private long tempoFim;
 
-    private final Semaphore mutex = new Semaphore(1);
-
     public Estatisticas() {
-        this.totalRequisicoesGeradas = 0;
-        this.requisicoesAtendidas = 0;
-        this.requisicoesFalhadas = 0;
-        this.somaBytesAlocados = 0;
+        this.totalRequisicoesGeradas = new AtomicInteger(0);
+        this.requisicoesAtendidas = new AtomicInteger(0);
+        this.requisicoesFalhadas = new AtomicInteger(0);
+        this.somaBytesAlocados = new AtomicLong(0);
+        this.totalBlocosRemovidos = 0;
+        this.chamadasLiberacao = 0;
+        this.chamadasCompactacao = 0;
         this.tempoInicio = 0;
         this.tempoFim = 0;
     }
@@ -31,30 +39,20 @@ public class Estatisticas {
     }
 
     public void registrarRequisicaoAtendida(int tamanhoBytes) {
-        try{
-            mutex.acquire();
-            totalRequisicoesGeradas++;
-            requisicoesAtendidas++;
-            somaBytesAlocados += tamanhoBytes;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            System.err.println("A thread foi interrompida enquanto registrava uma requisição atendida");
-        } finally {
-            mutex.release();
-        }
+        totalRequisicoesGeradas.incrementAndGet();
+        requisicoesAtendidas.incrementAndGet();
+        somaBytesAlocados.addAndGet(tamanhoBytes);
     }
 
     public void registrarRequisicaoFalhada() {
-        try{
-            mutex.acquire();
-            totalRequisicoesGeradas++;
-            requisicoesFalhadas++;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            System.err.println("A thread foi interrompida enquanto registrava uma requisição falhada");
-        } finally {
-            mutex.release();
-        }
+        totalRequisicoesGeradas.incrementAndGet();
+        requisicoesFalhadas.incrementAndGet();
+    }
+
+    public void capturarDadosGerenciador(GerenciadorHeap gerenciadorHeap) {
+        totalBlocosRemovidos = gerenciadorHeap.getTotalBlocosLiberados();
+        chamadasLiberacao = gerenciadorHeap.getTotalChamadasLiberacao();
+        chamadasCompactacao = gerenciadorHeap.getTotalChamadasCompactacao();
     }
 
     public double getTempoTotalMs() {
@@ -62,42 +60,53 @@ public class Estatisticas {
     }
 
     public double getTamanhoMedioAlocadoBytes() {
-        if (requisicoesAtendidas == 0) {
+        if (requisicoesAtendidas.get() == 0) {
             return 0;
         }
 
-        return (double) somaBytesAlocados / requisicoesAtendidas;
+        return (double) somaBytesAlocados.get() / requisicoesAtendidas.get();
     }
 
     public void imprimirResumo(GerenciadorHeap gerenciadorHeap) {
-        System.out.printf("\n\n======================================");
-        System.out.printf("\n       RESUMO FINAL DA EXECUÇÃO");
-        System.out.printf("\n======================================");
-        System.out.printf("\nTotal de Requisições Geradas: %d", totalRequisicoesGeradas);
-        System.out.printf("\nRequisições Alocadas: %d", requisicoesAtendidas);
-        System.out.printf("\nRequisições Falhadas: %d", requisicoesFalhadas);
-        System.out.printf("\nSoma dos Bytes Alocados: %d bytes", somaBytesAlocados);
+        capturarDadosGerenciador(gerenciadorHeap);
+
+        System.out.printf("\n\nRESUMO FINAL DA EXECUÇÃO");
+        System.out.printf("\nTotal de Requisições Geradas: %d", totalRequisicoesGeradas.get());
+        System.out.printf("\nRequisições Alocadas: %d", requisicoesAtendidas.get());
+        System.out.printf("\nRequisições Falhadas: %d", requisicoesFalhadas.get());
+        System.out.printf("\nSoma dos Bytes Alocados: %d bytes", somaBytesAlocados.get());
         System.out.printf("\nTamanho Médio Alocado: %.2f bytes", getTamanhoMedioAlocadoBytes());
-        System.out.printf("\nTotal de Blocos Removidos: %d", gerenciadorHeap.getTotalBlocosLiberados());
-        System.out.printf("\nChamadas ao Algoritmo de Liberação: %d", gerenciadorHeap.getTotalChamadasLiberacao());
-        System.out.printf("\nChamadas de Compactação: %d", gerenciadorHeap.getTotalChamadasCompactacao());
-        System.out.printf("\nTempo Total de Execução: %.2f ms", getTempoTotalMs());
-        System.out.printf("\n\n======================================\n");
+        System.out.printf("\nTotal de Blocos Removidos: %d", totalBlocosRemovidos);
+        System.out.printf("\nChamadas ao Algoritmo de Liberação: %d", chamadasLiberacao);
+        System.out.printf("\nChamadas de Compactação: %d", chamadasCompactacao);
+        System.out.printf("\nTempo Total de Execução: %.2f ms\n", getTempoTotalMs());
     }
 
     public int getTotalRequisicoesGeradas() {
-        return totalRequisicoesGeradas;
+        return totalRequisicoesGeradas.get();
     }
 
     public int getRequisicoesAtendidas() {
-        return requisicoesAtendidas;
+        return requisicoesAtendidas.get();
     }
 
     public int getRequisicoesFalhadas() {
-        return requisicoesFalhadas;
+        return requisicoesFalhadas.get();
     }
 
     public long getSomaBytesAlocados() {
-        return somaBytesAlocados;
+        return somaBytesAlocados.get();
+    }
+
+    public int getTotalBlocosRemovidos() {
+        return totalBlocosRemovidos;
+    }
+
+    public int getChamadasLiberacao() {
+        return chamadasLiberacao;
+    }
+
+    public int getChamadasCompactacao() {
+        return chamadasCompactacao;
     }
 }
