@@ -73,7 +73,7 @@ public class Paralelo {
 
             int numeroInicial = proximoNumeroRequisicao; //define o número da primeira requisição dessa produtora
 
-            Produtora produtoraRunnable; //declara a produtora
+            Produtora produtoraRunnable = new Produtora(filaRequisicoes, tamanhosRequisicoes, i, requisicoesPorThread, numeroInicial); //declara a produtora
 
             produtoraRunnable = new Produtora(filaRequisicoes, tamanhosRequisicoes, numeroInicial - 1, cargaTrabalho, numeroInicial); //se sim, usa essa lista
 
