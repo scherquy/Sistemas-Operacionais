@@ -3,7 +3,7 @@ package simulador.heap;
 import simulador.estatisticas.Estatisticas;
 
 import java.util.Random;
-
+//Classe que era utilizada na versão sequencial do projeto
 public class GerenciadorRequisicoes {
     private final GerenciadorHeap gerenciadorHeap;
     private final Random random;

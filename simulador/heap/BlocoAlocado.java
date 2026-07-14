@@ -5,7 +5,7 @@ public class BlocoAlocado {
     private int inicio;
     private final int tamanhoSolicitadoBytes;
     private final int tamanhoSlots;
-
+   
     public BlocoAlocado(int id, int inicio, int tamanhoSolicitadoBytes, int tamanhoSlots) {
         this.id = id;
         this.inicio = inicio;

@@ -13,21 +13,21 @@ public class FirstFit {
         return buscarEspaco(tamanhoSlots, 0, heap.getTotalSlots());
     }
 
-    public int buscarEspaco(int tamanhoSlots, int inicioBusca, int fimBusca) {
-        int[] memoria = heap.getMemoria();
+    public int buscarEspaco(int tamanhoSlots, int inicioBusca, int fimBusca) { //função principal
+        int[] memoria = heap.getMemoria(); //Pega referencia da Heap
 
-        int inicioLivre = -1;
-        int contadorLivre = 0;
+        int inicioLivre = -1; //marca onde começa o espaço livre
+        int contadorLivre = 0; // conta quantos slots livres foram encontrados
 
-        for (int i = inicioBusca; i < fimBusca; i++) {
-            if (memoria[i] == 0) {
+        for (int i = inicioBusca; i < fimBusca; i++) { // percorre a heap
+            if (memoria[i] == 0) { //se o slot está livre
                 if (inicioLivre == -1) {
                     inicioLivre = i;
                 }
 
                 contadorLivre++;
 
-                if (contadorLivre >= tamanhoSlots) {
+                if (contadorLivre >= tamanhoSlots) { // se acha um espaço de tamanho livre necessário retorna a posição
                     return inicioLivre;
                 }
             } else {
@@ -36,6 +36,6 @@ public class FirstFit {
             }
         }
 
-        return -1;
+        return -1; // retorna falha
     }
 }

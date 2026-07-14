@@ -4,7 +4,7 @@ public class Heap {
     private final int[] memoria;
     private final int totalSlots;
     private final int totalBytes;
-
+    //Funções básicas da Heap
     public Heap(int tamanhoKB) {
         this.totalBytes = tamanhoKB * 1024;
         this.totalSlots = totalBytes / 4;

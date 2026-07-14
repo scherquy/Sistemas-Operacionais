@@ -18,25 +18,26 @@ public class Libera {
     }
 
     public void liberar() {
-        gerenciador.incrementarChamadasLiberacao();
+        gerenciador.incrementarChamadasLiberacao(); //contador
 
         ArrayList<BlocoAlocado> candidatos = gerenciador.getTabelaAlocacoes();
 
-        if (candidatos.isEmpty()) {
+        if (candidatos.isEmpty()) { // se a tabela de alocação esta vazia
             return;
         }
 
-        int metaSlots = (int) Math.ceil(heap.getTotalSlots() * 0.30);
+        int metaSlots = (int) Math.ceil(heap.getTotalSlots() * 0.30); // calcular a meta de 30%
         int slotsLiberados = 0;
 
-        Collections.shuffle(candidatos, new Random());
-
+        Collections.shuffle(candidatos, new Random()); //Embaralha a tabela de alocações
+       
+        // percorre a tabela de alocação até atingir a meta de 30% ou ate terminar a tabela
         for (int i = 0; i < candidatos.size() && slotsLiberados < metaSlots; i++) {
-            BlocoAlocado bloco = candidatos.get(i);
+            BlocoAlocado bloco = candidatos.get(i);  // pega um bloco da tabela
 
-            boolean removeu = gerenciador.liberarPorIdInterno(bloco.getId());
+            boolean removeu = gerenciador.liberarPorIdInterno(bloco.getId()); //função para remover bloco pelo id
 
-            if (removeu) {
+            if (removeu) { // se removeu incrementa o contador com o numero de slots liberados
                 slotsLiberados += bloco.getTamanhoSlots();
             }
         }
