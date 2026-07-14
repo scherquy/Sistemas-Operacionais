@@ -1,4 +1,4 @@
-/*package simulador.heap;
+package simulador.heap;
 
 import simulador.estatisticas.Estatisticas;
 
@@ -80,4 +80,4 @@ public class GerenciadorRequisicoes {
 
         return estatisticas;
     }
-} */
+}
