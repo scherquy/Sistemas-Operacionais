@@ -3,7 +3,7 @@ package simulador.threads;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 
-public class Produtora implements Runnable {
+public class Produtora implements Runnable { //implements Runnable permite que ela seja executada dentro de uma thread
     private final BlockingQueue<Requisicao> filaRequisicoes;
     private final int tamanhoMinimoBytes;
     private final int tamanhoMaximoBytes;
@@ -12,17 +12,6 @@ public class Produtora implements Runnable {
     private final int indiceInicial;
     private final int[] tamanhosRequisicoes;
     private final Random random;
-
-    public Produtora(BlockingQueue<Requisicao> filaRequisicoes, int tamanhoMinimoBytes, int tamanhoMaximoBytes, int totalRequisicoesPorThread, int numeroInicial) {
-        this.filaRequisicoes = filaRequisicoes;
-        this.tamanhoMinimoBytes = tamanhoMinimoBytes;
-        this.tamanhoMaximoBytes = tamanhoMaximoBytes;
-        this.totalRequisicoesPorThread = totalRequisicoesPorThread;
-        this.numeroInicial = numeroInicial;
-        this.indiceInicial = 0;
-        this.tamanhosRequisicoes = null;
-        this.random = new Random();
-    }
 
     public Produtora(BlockingQueue<Requisicao> filaRequisicoes, int[] tamanhosRequisicoes, int indiceInicial, int totalRequisicoesPorThread, int numeroInicial) {
         this.filaRequisicoes = filaRequisicoes;

@@ -12,10 +12,7 @@ public class Sequencial {
     private final int totalRequisicoes;
     private final int[] tamanhosRequisicoes;
 
-    public Sequencial(int tamanhoHeapKB, int tamanhoMinimoBytes, int tamanhoMaximoBytes, int totalRequisicoes) {
-        this(tamanhoHeapKB, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes, null);
-    }
-
+    //recebe a lista de requisições
     public Sequencial(int tamanhoHeapKB, int tamanhoMinimoBytes, int tamanhoMaximoBytes, int totalRequisicoes, int[] tamanhosRequisicoes) {
         this.tamanhoHeapKB = tamanhoHeapKB;
         this.tamanhoMinimoBytes = tamanhoMinimoBytes;
@@ -24,21 +21,18 @@ public class Sequencial {
         this.tamanhosRequisicoes = tamanhosRequisicoes;
     }
 
+    // executa a versão sequencial e retorna as estatísticas
     public Estatisticas executar() {
         System.out.printf("\nSIMULADOR SEQUENCIAL\n");
         System.out.printf("Heap: %d KB | Requisições: %d | Faixa: %d a %d bytes\n", tamanhoHeapKB, totalRequisicoes, tamanhoMinimoBytes, tamanhoMaximoBytes);
 
-        Heap heap = new Heap(tamanhoHeapKB);
-        GerenciadorHeap gerenciador = new GerenciadorHeap(heap);
+        Heap heap = new Heap(tamanhoHeapKB); //cria a heap
+        GerenciadorHeap gerenciador = new GerenciadorHeap(heap); //cria o gerenciador da heap
 
-        GerenciadorRequisicoes gerador;
+        GerenciadorRequisicoes gerador; // objeto que processa as requisições
 
-        if (tamanhosRequisicoes == null) {
-            gerador = new GerenciadorRequisicoes(gerenciador, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes);
-        } else {
-            gerador = new GerenciadorRequisicoes(gerenciador, tamanhosRequisicoes);
-        }
+        gerador = new GerenciadorRequisicoes(gerenciador, tamanhosRequisicoes); //usa essa existente
 
-        return gerador.executar();
+        return gerador.executar(); //executa as requisições e retorna as estatísticas
     }
 }

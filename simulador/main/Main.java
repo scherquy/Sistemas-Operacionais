@@ -56,32 +56,32 @@ public class Main {
             return;
         }
 
-        int[] tamanhosRequisicoes = gerarRequisicoes(totalRequisicoes, tamanhoMinimoBytes, tamanhoMaximoBytes);
+        int[] tamanhosRequisicoes = gerarRequisicoes(totalRequisicoes, tamanhoMinimoBytes, tamanhoMaximoBytes); // Lista com os tamanhos das requisições
 
-        Sequencial sequencial = new Sequencial(tamanhoHeapKB, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes, tamanhosRequisicoes);
+        Sequencial sequencial = new Sequencial(tamanhoHeapKB, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes, tamanhosRequisicoes); //Cria a versão sequencial
 
-        Estatisticas estatisticasSequencial = sequencial.executar();
+        Estatisticas estatisticasSequencial = sequencial.executar(); //Guarda as estatísticas da sequencial
 
-        Paralelo paralelo = new Paralelo(tamanhoHeapKB, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes, numThreadsProdutoras, tamanhosRequisicoes);
+        Paralelo paralelo = new Paralelo(tamanhoHeapKB, tamanhoMinimoBytes, tamanhoMaximoBytes, totalRequisicoes, numThreadsProdutoras, tamanhosRequisicoes); //cria a versão paralela
 
-        Estatisticas estatisticasParalelo = paralelo.executar();
+        Estatisticas estatisticasParalelo = paralelo.executar(); //guarda as estatísticas da paralela
 
-        imprimirComparacao(estatisticasSequencial, estatisticasParalelo);
+        imprimirComparacao(estatisticasSequencial, estatisticasParalelo); //imprime as estatísticas das duas versões
 
-        entrada.close();
+        entrada.close(); //fecha o scanner
     }
 
     private static int[] gerarRequisicoes(int totalRequisicoes, int tamanhoMinimoBytes, int tamanhoMaximoBytes) {
-        int[] tamanhos = new int[totalRequisicoes];
-        Random random = new Random(12345);
+        int[] tamanhos = new int[totalRequisicoes]; //cria um vetor com uma posição para cada requisição
+        Random random = new Random(12345); //cria o gerador aleatório
 
-        int intervalo = tamanhoMaximoBytes - tamanhoMinimoBytes;
+        int intervalo = tamanhoMaximoBytes - tamanhoMinimoBytes; //diferença entre o maior e o menor tamanho de requisições
 
-        for (int i = 0; i < totalRequisicoes; i++) {
-            tamanhos[i] = tamanhoMinimoBytes + random.nextInt(intervalo + 1);
+        for (int i = 0; i < totalRequisicoes; i++) { //percorre todas as posições do vetor
+            tamanhos[i] = tamanhoMinimoBytes + random.nextInt(intervalo + 1); //gera um tamanho aleatório
         }
 
-        return tamanhos;
+        return tamanhos; //retorna o vetor com os tamanhos
     }
 
     private static void imprimirComparacao(Estatisticas sequencial, Estatisticas paralelo) {

@@ -7,7 +7,7 @@ import simulador.sincronizacao.SemaforoHeap;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-// CLASSE RESPONSÁVEL POR TODAS OPERAÇÕES DO SIMULADOR//
+// CLASSE RESPONSÁVEL POR TODAS OPERAÇÕES SOBRE A HEAP//
 
 public class GerenciadorHeap {
     private final Heap heap; //vetor da heap
@@ -19,10 +19,12 @@ public class GerenciadorHeap {
     private final SemaforoHeap[] semaforosSegmentos; //Semáforo para proteger segmentos da heap
     private final SemaforoHeap semaforoTabela; //mutex para a tabela de alocações
 
+    //usado para a versão sequencial
     public GerenciadorHeap(Heap heap) {
         this(heap, 1); 
     }
 
+    //usado para a versão paralela
     public GerenciadorHeap(Heap heap, int totalSegmentos) {
         if (totalSegmentos <= 0) {  //minimo 1 segmento
             totalSegmentos = 1;
@@ -129,8 +131,8 @@ public class GerenciadorHeap {
         }
     }
 
-    private void liberarTodosSegmentos() {
-        for (SemaforoHeap semaforo : semaforosSegmentos) {
+    private void liberarTodosSegmentos() { //libera a heap inteira
+        for (SemaforoHeap semaforo : semaforosSegmentos) { //libera todos os semáforos
             semaforo.liberar();
         }
     }
@@ -140,135 +142,148 @@ public class GerenciadorHeap {
     }
 
     private int calcularFimSegmento(int segmento) {
-        return (heap.getTotalSlots() * (segmento + 1)) / semaforosSegmentos.length;
+        return (heap.getTotalSlots() * (segmento + 1)) / semaforosSegmentos.length; 
     }
 
+    //gera um ID único
     public int gerarNovoId() {
-        return proximoId.getAndIncrement();
+        return proximoId.getAndIncrement(); //retorna o valor atual e incrementa para o próximo 
     }
 
+    //adiciona um bloco na tabela de alocações
     public void registrarBlocoAlocado(int id, int inicio, int tamanhoSolicitadoBytes, int tamanhoSlots) {
-        semaforoTabela.adquirir();
+        semaforoTabela.adquirir(); //bloqueia a tabela
 
-        tabelaAlocacoes.add(new BlocoAlocado(id, inicio, tamanhoSolicitadoBytes, tamanhoSlots));
+        tabelaAlocacoes.add(new BlocoAlocado(id, inicio, tamanhoSolicitadoBytes, tamanhoSlots)); //adiciona o bloco na tabela
 
-        semaforoTabela.liberar();
+        semaforoTabela.liberar(); //libera a tabela
     }
 
+    //procura um bloco na tabela por ID
     public BlocoAlocado buscarBlocoPorId(int id) {
-        semaforoTabela.adquirir();
+        semaforoTabela.adquirir(); //bloqueia a tabela
 
-        BlocoAlocado resultado = null;
+        BlocoAlocado resultado = null; //inicia dizendo que não encontrou nada
 
-        for (BlocoAlocado bloco : tabelaAlocacoes) {
-            if (bloco.getId() == id) {
+        for (BlocoAlocado bloco : tabelaAlocacoes) { //percorre a tabela
+            if (bloco.getId() == id) { //se encontrou o ID, guarda em resultado e para o loop
                 resultado = bloco;
                 break;
             }
         }
 
-        semaforoTabela.liberar();
+        semaforoTabela.liberar(); //libera a tabela
 
-        return resultado;
+        return resultado; //retorna o bloco que foi encontrado
     }
 
+    //remove um bloco por ID
     public boolean removerRegistroPorId(int id) {
-        semaforoTabela.adquirir();
+        semaforoTabela.adquirir(); //bloqueia a tabela
 
-        boolean removeu = false;
+        boolean removeu = false; //inicia dizendo que não removeu
 
-        for (int i = 0; i < tabelaAlocacoes.size(); i++) {
-            if (tabelaAlocacoes.get(i).getId() == id) {
-                tabelaAlocacoes.remove(i);
-                removeu = true;
+        for (int i = 0; i < tabelaAlocacoes.size(); i++) { //percorre a tabela
+            if (tabelaAlocacoes.get(i).getId() == id) { //verifica se o bloco tem o ID procurado
+                tabelaAlocacoes.remove(i); //remove o bloco e para o loop
+                removeu = true; 
                 break;
             }
         }
 
-        semaforoTabela.liberar();
+        semaforoTabela.liberar(); //libera a tabela
 
-        return removeu;
+        return removeu; //retorna o resultado
     }
 
+    //atualiza a posição inicial do bloco. É usado na compactação
     public void atualizarInicioBloco(int id, int novoInicio) {
-        semaforoTabela.adquirir();
+        semaforoTabela.adquirir(); //bloqueia a tabela
 
         for (BlocoAlocado bloco : tabelaAlocacoes) {
-            if (bloco.getId() == id) {
+            if (bloco.getId() == id) { //se encontrou o bloco, atualiza o início dele
                 bloco.setInicio(novoInicio);
                 break;
             }
         }
 
-        semaforoTabela.liberar();
+        semaforoTabela.liberar(); //libera a tabela
     }
 
-    public boolean liberarPorIdInterno(int id) {
-        BlocoAlocado bloco = buscarBlocoPorId(id);
+    //libera um bloco específico por ID
+    public boolean liberarPorIdInterno(int id) { 
+        BlocoAlocado bloco = buscarBlocoPorId(id); //procura o bloco na tabela
 
-        if (bloco == null) {
+        if (bloco == null) { //se não encontrou, não tem nada pra liberar
             return false;
         }
 
-        heap.liberar(bloco.getInicio(), bloco.getTamanhoSlots());
-        removerRegistroPorId(id);
-        incrementarBlocosLiberados();
+        heap.liberar(bloco.getInicio(), bloco.getTamanhoSlots()); //zera as posições que esse bloco ocupa na heap
+        removerRegistroPorId(id); //remove os blocos da tabela
+        incrementarBlocosLiberados(); //incrementa a estatística de blocos liberados
 
-        return true;
+        return true; //liberou com sucesso
     }
 
+    //libera blocos aleatórios
     public void liberarAleatorio() {
-        adquirirTodosSegmentos();
-        liberarAleatorioInterno();
-        liberarTodosSegmentos();
+        adquirirTodosSegmentos(); //bloqueia a heap
+        liberarAleatorioInterno(); //libera os blocos aleatoriamente
+        liberarTodosSegmentos(); // libera a heap
     }
 
     public void liberarAleatorioInterno() {
-        new Libera(heap, this).liberar();
+        new Libera(heap, this).liberar(); //chama o método que libera os 30%
     }
 
+    //compactação da heap
     public void compactar() {
-        adquirirTodosSegmentos();
-        compactarInterno();
-        liberarTodosSegmentos();
+        adquirirTodosSegmentos(); //bloqueia a heap
+        compactarInterno(); //faz a compactação
+        liberarTodosSegmentos(); //libera a heap
     }
 
+    //executa a compactação
     public void compactarInterno() {
         new Compactacao(heap, this).compactar();
     }
 
+    //verifica se o intervalo está dentro da heap
     public boolean intervaloEstaDentroDaHeap(int inicio, int tamanhoSlots) {
-        if (inicio < 0 || tamanhoSlots <= 0) {
+        if (inicio < 0 || tamanhoSlots <= 0) { //se for um valor negativo é inválido
             return false;
         }
 
-        return (inicio + tamanhoSlots - 1) < heap.getTotalSlots();
+        return (inicio + tamanhoSlots - 1) < heap.getTotalSlots(); //verifica se a última posição do bloco está dentro da heap
     }
 
+    //conta quantos slots estão ocupados de acordo com a tabela
     public int contarSlotsOcupadosPelaTabela() {
         int total = 0;
 
-        semaforoTabela.adquirir();
+        semaforoTabela.adquirir(); //bloqueia a tabela
 
         for (BlocoAlocado bloco : tabelaAlocacoes) {
-            total += bloco.getTamanhoSlots();
+            total += bloco.getTamanhoSlots(); //soma o tamanho em slots de todos os blocos
         }
 
-        semaforoTabela.liberar();
+        semaforoTabela.liberar(); //libera a tabela
 
-        return total;
+        return total; 
     }
+
 
     public int contarSlotsLivresPelaTabela() {
         return heap.getTotalSlots() - contarSlotsOcupadosPelaTabela();
     }
 
+    //conta os slots livres da heap
     public int contarSlotsLivresPelaHeap() {
         int[] memoria = heap.getMemoria();
         int livres = 0;
 
         for (int slot : memoria) {
-            if (slot == 0) {
+            if (slot == 0) { //se o slot estiver com 0 significa qque ele está livre
                 livres++;
             }
         }
@@ -280,20 +295,22 @@ public class GerenciadorHeap {
         return heap.getTotalSlots() - contarSlotsLivresPelaHeap();
     }
 
+    //retorna uma cópia da tabela de alocações
     public ArrayList<BlocoAlocado> getTabelaAlocacoes() {
         semaforoTabela.adquirir();
 
-        ArrayList<BlocoAlocado> copia = new ArrayList<>(tabelaAlocacoes);
+        ArrayList<BlocoAlocado> copia = new ArrayList<>(tabelaAlocacoes); //cria a cópia da tabela
 
         semaforoTabela.liberar();
 
         return copia;
     }
 
+    //retorna quantos blocos existem na tabela
     public int getQuantidadeBlocosAlocados() {
         semaforoTabela.adquirir();
 
-        int quantidade = tabelaAlocacoes.size();
+        int quantidade = tabelaAlocacoes.size(); //pega a quantidade de blocos
 
         semaforoTabela.liberar();
 
